@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     # --- 파이프라인 ---
     max_messages: int = 120  # 초과하면 샘플링한다
 
+    # 만료 정리 주기. 조회되지 않은 작업도 사라지게 하는 장치다
+    sweep_interval_seconds: int = 60
+
     # --- 교체 지점 ---
     # 실제 모델은 성능 평가 이후에 붙인다. 그때 이 값만 바꾸면 된다.
     llm_provider: Literal["stub"] = "stub"

@@ -11,6 +11,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.rate_limit import RateLimiter
 from app.api.routes import router
@@ -23,7 +24,17 @@ from app.infrastructure.storage.memory import InMemoryBlobStore, InMemoryJobStor
 
 logger = logging.getLogger(__name__)
 
-SWEEP_INTERVAL_SECONDS = 60
+# 프레임워크가 만든 상태 코드를 우리 오류 코드로 옮긴다
+_HTTP_STATUS_TO_CODE = {
+    400: ErrorCode.IMAGE_FORMAT_UNSUPPORTED,
+    404: ErrorCode.JOB_NOT_FOUND,
+    405: ErrorCode.JOB_NOT_FOUND,
+    409: ErrorCode.JOB_NOT_READY,
+    410: ErrorCode.JOB_EXPIRED,
+    413: ErrorCode.IMAGE_TOO_LARGE,
+    422: ErrorCode.IMAGE_FORMAT_UNSUPPORTED,
+    429: ErrorCode.RATE_LIMITED,
+}
 
 
 def _error_response(error: AppError, headers: dict[str, str] | None = None) -> JSONResponse:
@@ -55,7 +66,7 @@ async def _sweep_loop(app: FastAPI) -> None:
     """
     while True:
         try:
-            await asyncio.sleep(SWEEP_INTERVAL_SECONDS)
+            await asyncio.sleep(app.state.settings.sweep_interval_seconds)
             removed = app.state.service.sweep()
             stale_keys = app.state.limiter.prune()
             if removed or stale_keys:
@@ -134,6 +145,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ) -> JSONResponse:
         # 업로드 형식이 어긋난 경우다. 상세 내용은 노출하지 않는다
         return _error_response(AppError(ErrorCode.IMAGE_FORMAT_UNSUPPORTED))
+
+    @app.exception_handler(StarletteHTTPException)
+    async def handle_http_exception(
+        request: Request, exc: StarletteHTTPException
+    ) -> JSONResponse:
+        """프레임워크가 직접 만드는 오류도 같은 봉투에 담는다.
+
+        multipart 파싱 실패나 존재하지 않는 경로는 우리 코드에 닿기 전에
+        Starlette이 처리한다. 그대로 두면 `{"detail": ...}` 형태가 새어 나가
+        API 명세 2장의 오류 규격이 깨진다.
+        """
+        code = _HTTP_STATUS_TO_CODE.get(exc.status_code, ErrorCode.INTERNAL_ERROR)
+        return _error_response(AppError(code))
 
     @app.exception_handler(Exception)
     async def handle_unexpected(request: Request, exc: Exception) -> JSONResponse:
