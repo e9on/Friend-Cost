@@ -22,7 +22,9 @@ from app.domain.model.report import ReportData
 from app.domain.model.score import FEE_MAX, FEE_MIN
 from app.domain.value_object.enums import Confidence, JobStage, JobStatus
 
-DOCS = Path(__file__).resolve().parents[2] / "mdfiles"
+ROOT = Path(__file__).resolve().parents[2]
+DOCS = ROOT / "mdfiles"
+ROOT_README = ROOT / "README.md"
 
 CONTRACT = DOCS / "데이터-계약-명세.md"
 SCORING = DOCS / "관계-점수-계산-규칙.md"
@@ -241,6 +243,39 @@ class TestOcrRequirements:
     def test_base_spec_repeats_the_requirement(self):
         # 이 요구가 사라지면 서비스 지표 절반이 계산 불가능해진다
         assert "bounding box 좌표를 반환해야 한다" in read(BASE)
+
+
+class TestRootReadme:
+    """저장소 진입점이 실제 상태를 가리키는지."""
+
+    def test_links_every_spec_document(self):
+        text = read(ROOT_README)
+
+        missing = [
+            path.name for path in DOCS.glob("*.md") if path.name not in text
+        ]
+
+        assert not missing, f"루트 README가 가리키지 않는 문서: {missing}"
+
+    def test_linked_paths_resolve(self):
+        text = read(ROOT_README)
+        links = re.findall(r"\]\((mdfiles/[^)#]+)\)", text)
+
+        assert links, "명세 문서 링크를 찾지 못했다"
+        broken = [link for link in links if not (ROOT / link).exists()]
+
+        assert not broken, f"깨진 링크: {broken}"
+
+    def test_replacement_settings_are_named_correctly(self):
+        """README가 알려주는 환경변수가 실제로 존재해야 한다."""
+        text = read(ROOT_README)
+        prefix = Settings.model_config["env_prefix"]
+        mentioned = set(re.findall(rf"{prefix}([A-Z_]+)", text))
+
+        known = {name.upper() for name in Settings.model_fields}
+        unknown = mentioned - known
+
+        assert not unknown, f"존재하지 않는 설정을 안내하고 있다: {unknown}"
 
 
 class TestPrivacyPrinciples:
