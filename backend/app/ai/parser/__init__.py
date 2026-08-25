@@ -34,7 +34,13 @@ from app.domain.value_object.enums import Speaker, TimeSource
 __all__ = ["parse"]
 
 MIN_BLOCK_CONFIDENCE: Final = 0.5
-MERGE_LINE_FACTOR: Final = 1.5  # 블록 병합 시 허용하는 세로 간격 (앞 블록 높이 대비)
+# 블록 병합 시 허용하는 세로 간격 (앞 블록 높이 대비).
+#
+# 말풍선 안에서 줄이 바뀔 때의 간격은 거의 0에 가깝다. 반면 별개 메시지
+# 사이에는 여백이 들어간다. 이 차이가 유일한 단서이므로 허용치를 좁게 잡는다.
+# 넓게 잡으면 서로 다른 메시지가 한 덩어리로 합쳐져 메시지 수가 줄고,
+# 그러면 연락 균형도와 답장 속도가 통째로 틀어진다.
+MERGE_LINE_FACTOR: Final = 0.4
 MERGE_ALIGN_RATIO: Final = 0.03  # 같은 말풍선으로 볼 정렬 오차 (이미지 폭 대비)
 NAME_LABEL_MAX_LEN: Final = 12
 NAME_LABEL_GAP_FACTOR: Final = 1.2
