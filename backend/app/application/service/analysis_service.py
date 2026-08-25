@@ -47,15 +47,22 @@ class AnalysisService:
         validated = validate_uploads(images, self.settings)
 
         job = self.job_store.create()
-        for index, image in enumerate(validated):
+        keys = [
             self.blob_store.put(job.job_id, index, image.data)
+            for index, image in enumerate(validated)
+        ]
 
-        payload = [image.data for image in validated]
-        self._tasks[job.job_id] = asyncio.create_task(self._execute(job, payload))
+        # 바이트를 그대로 넘기지 않고 **저장소 키만** 넘긴다.
+        #
+        # 인메모리 구현에서는 차이가 없어 보인다. 그러나 외부 오브젝트
+        # 스토리지로 갈아 끼우면(기준 명세 6장) 이미지를 계속 들고 있을
+        # 필요가 없어지고, 동시 요청이 많을 때 메모리가 줄어든다.
+        self._tasks[job.job_id] = asyncio.create_task(self._execute(job, keys))
         return job
 
-    async def _execute(self, job: AnalysisJob, images: list[bytes]) -> None:
+    async def _execute(self, job: AnalysisJob, keys: list[str]) -> None:
         try:
+            images = [self.blob_store.get(key) for key in keys]
             result = await asyncio.wait_for(
                 self.pipeline.run(job, images),
                 timeout=self.settings.total_timeout_seconds,
