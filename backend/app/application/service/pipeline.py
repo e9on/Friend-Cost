@@ -43,14 +43,36 @@ def _build_llm_provider(settings: Settings):
             model=settings.llm_model,
             effort=settings.llm_effort,
             timeout_seconds=settings.llm_timeout_seconds,
-            api_key=settings.anthropic_api_key,
+            api_key=settings.llm_api_key,
         )
-    raise ValueError(f"알 수 없는 llm provider: {settings.llm_provider}")
+
+    # 아래는 모두 OpenAI 호환 스펙을 따르므로 구현 하나로 덮는다
+    from app.ai.provider.openai_compatible import OpenAiCompatibleProvider
+
+    if not settings.llm_api_key:
+        raise ValueError(f"{settings.llm_provider} 를 쓰려면 FC_LLM_API_KEY 가 필요하다")
+
+    return OpenAiCompatibleProvider(
+        name=settings.llm_provider,
+        model=settings.llm_model,
+        api_key=settings.llm_api_key,
+        base_url=settings.llm_base_url,
+        timeout_seconds=settings.llm_timeout_seconds,
+    )
 
 
 def _build_ocr_engine(settings: Settings) -> OcrEngine:
     if settings.ocr_engine == "stub":
         return StubOcrEngine()
+    if settings.ocr_engine == "google_vision":
+        from app.infrastructure.ocr.google_vision import GoogleVisionOcrEngine
+
+        if not settings.ocr_api_key:
+            raise ValueError("google_vision 을 쓰려면 FC_OCR_API_KEY 가 필요하다")
+        return GoogleVisionOcrEngine(
+            api_key=settings.ocr_api_key,
+            timeout_seconds=settings.ocr_timeout_seconds,
+        )
     raise ValueError(f"알 수 없는 ocr engine: {settings.ocr_engine}")
 
 

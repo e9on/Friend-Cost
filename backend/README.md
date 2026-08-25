@@ -11,14 +11,39 @@
 | 도메인 모델 | 완료 |
 | 관계 점수 알고리즘 | 완료 |
 | Conversation Parser | 완료 |
-| AI Agent / Validator | 완료 (**모델 미연결**) |
+| AI Agent / Validator | 완료 (**기본값은 스텁**) |
 | 저장소 | 완료 (인메모리) |
 | API | 완료 |
-| Frontend | 미착수 |
+| Frontend | 완료 (React) |
 
-**실제 LLM과 OCR 엔진은 아직 붙이지 않았다.** 성능 평가 후에 연결할 예정이라, 그 자리에는 결정론적 스텁이 들어 있다. 스텁으로도 업로드부터 결과 조회까지 전 구간이 동작한다.
+**실제 LLM과 OCR 엔진은 기본값이 스텁이다.** 성능 평가 후에 연결할 예정이라, 그 자리에 결정론적 가짜가 들어 있다. 스텁으로도 업로드부터 결과 조회까지 전 구간이 동작한다.
 
 `GET /health` 의 `llmProvider`, `ocrEngine` 이 `stub` 이면 아직 가짜다.
+
+실제 구현은 이미 들어 있다. 설정만 바꾸면 붙는다.
+
+| 구분 | 사용 가능한 값 |
+| --- | --- |
+| `FC_LLM_PROVIDER` | `stub` · `anthropic` · `groq` · `deepseek` · `together` · `openrouter` |
+| `FC_OCR_ENGINE` | `stub` · `google_vision` |
+
+후보 조사와 선정 근거는 [`mdfiles/AI-모델-선정-보고서.md`](../mdfiles/AI-모델-선정-보고서.md)에 있다.
+
+> **무료 티어라고 다 쓸 수 있는 것이 아니다.** Gemini와 Mistral의 무료 티어는 입력을 학습에 쓰고 사람이 검토할 수 있다. 우리는 사용자 본인이 아니라 **대화 상대방의 사적 메시지**를 다루므로 쓸 수 없다. Groq은 무료·유료 모두 학습에 쓰지 않는다고 명시한다.
+
+## 모델 실측
+
+후보를 가격순으로 고르지 않는다. 같은 대화를 넣어보고 고른다.
+
+```bash
+.venv/Scripts/python.exe tools/evaluate_llm.py --provider stub --count 8 --repeat 3
+.venv/Scripts/python.exe tools/evaluate_llm.py --provider groq --model llama-3.3-70b-versatile --key $GROQ_KEY
+.venv/Scripts/python.exe tools/evaluate_llm.py --provider anthropic --model claude-haiku-4-5 --key $ANTHROPIC_KEY
+```
+
+실제 카카오톡 캡처가 있으면 `--fixtures` 로 `OcrPage` JSON 디렉터리를 넘긴다. 없으면 합성 대화로 돈다.
+
+가장 중요한 지표는 정확도가 아니라 **결과 분산**이다. 스키마를 지키고 문장이 매끄러워도, 어떤 대화를 넣든 친밀도가 60~70으로만 나온다면 그 모델은 관계를 읽지 못하는 것이다. 그런 결과는 오류로 드러나지 않고, 사용자는 그것이 자기 관계를 반영한다고 믿는다.
 
 ## 실행
 
@@ -67,11 +92,13 @@ app
 
 교체 지점은 두 곳뿐이다.
 
-**LLM** — `app/ai/provider/` 에 `LlmProvider` 구현을 추가하고, `app/application/service/pipeline.py` 의 `_build_llm_provider` 에 분기를 더한 뒤 `FC_LLM_PROVIDER` 를 바꾼다.
+**LLM** — Anthropic과 OpenAI 호환 후보(Groq 등)는 이미 구현되어 있다. `FC_LLM_PROVIDER`, `FC_LLM_MODEL`, `FC_LLM_API_KEY` 만 채우면 된다. 새 후보를 추가할 때는 `app/ai/provider/` 에 구현을 넣고 `_build_llm_provider` 에 분기를 더한다.
+
+OpenAI 호환 스펙을 따르는 곳은 구현 하나로 모두 덮으므로, 대부분 설정만 바뀐다.
 
 Provider는 전송만 한다. 프롬프트는 `app/ai/prompt/`, 응답 검증은 `app/ai/validator/` 소관이므로 건드릴 필요가 없다.
 
-**OCR** — `app/infrastructure/ocr/` 에 `OcrEngine` 구현을 추가하고 `_build_ocr_engine` 에 분기를 더한 뒤 `FC_OCR_ENGINE` 를 바꾼다.
+**OCR** — Google Cloud Vision이 구현되어 있다. `FC_OCR_ENGINE=google_vision` 과 `FC_OCR_API_KEY` 를 설정한다.
 
 > OCR 엔진은 **텍스트와 함께 bounding box 좌표, 그리고 이미지 크기를 반환해야 한다.** 화자 판별이 좌우 여백 비교에 의존하기 때문이다. 좌표를 주지 않는 엔진은 비용이 낮아도 쓸 수 없다. 자세한 내용은 `OCR-Parser-명세.md` 2장.
 
@@ -102,8 +129,7 @@ CORS 허용 Origin은 기본값이 비어 있다. 배포 시 `app/main.py` 에�
 
 ## 남은 일
 
-- 실제 LLM Provider 연결 (성능 평가 후)
-- 실제 OCR 엔진 연결 (좌표 제공 여부가 1순위 기준)
-- Frontend
+- **실제 캡처로 OCR·LLM 실측** — 후보와 절차는 `AI-모델-선정-보고서.md` 8장
+- Naver CLOVA OCR 엔진 (Vision 정확도가 부족할 때의 대안)
 - AI 프롬프트 명세, Frontend 명세, 법적 고지 문서
-- 외부 TTL 저장소 구현 (확장 시점에)
+- 외부 TTL 저장소 구현 (인스턴스를 늘릴 시점에)

@@ -45,16 +45,25 @@ class Settings(BaseSettings):
     sweep_interval_seconds: int = 60
 
     # --- 교체 지점 ---
-    # 실제 모델은 성능 평가 이후에 붙인다. 그때 이 값만 바꾸면 된다.
-    llm_provider: Literal["stub", "anthropic"] = "stub"
-    ocr_engine: Literal["stub"] = "stub"
+    # 후보와 선정 근거는 `AI-모델-선정-보고서.md` 참조.
+    # 무료 티어라도 입력을 학습에 쓰는 곳은 쓸 수 없다. 우리는 사용자 본인이
+    # 아니라 대화 상대방의 사적 메시지를 다루기 때문이다.
+    llm_provider: Literal[
+        "stub", "anthropic", "groq", "deepseek", "together", "openrouter"
+    ] = "stub"
+    ocr_engine: Literal["stub", "google_vision"] = "stub"
 
-    # anthropic Provider를 쓸 때만 의미가 있다.
-    # 어떤 모델을 쓸지는 tools/evaluate_llm.py 의 평가 결과로 정한다.
-    llm_model: str = "claude-haiku-4-5"
+    # 어떤 모델을 쓸지는 실측으로 정한다. tools/evaluate_llm.py 참조.
+    llm_model: str = "llama-3.3-70b-versatile"
+    llm_api_key: str | None = None
+    # OpenAI 호환 후보의 주소를 직접 지정할 때만 쓴다. 알려진 곳은 자동으로 채운다
+    llm_base_url: str | None = None
+
+    # anthropic Provider 전용.
     # 구조화된 추출 작업이라 낮은 추론 강도로 충분하다. 비용 목표와도 맞는다.
     llm_effort: Literal["low", "medium", "high", "xhigh", "max"] = "low"
-    anthropic_api_key: str | None = None
+
+    ocr_api_key: str | None = None
 
     log_level: str = "INFO"
 
