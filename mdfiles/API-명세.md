@@ -93,6 +93,7 @@ Content-Type: multipart/form-data
 | --- | --- | ---: |
 | 이미지 0개 또는 10개 초과 | `IMAGE_TOO_MANY` | 400 |
 | 개별·전체 용량 초과 | `IMAGE_TOO_LARGE` | 400 |
+| 본문이 상한을 넘는다고 선언 | `IMAGE_TOO_LARGE` | 413 |
 | 허용되지 않은 형식 | `IMAGE_FORMAT_UNSUPPORTED` | 400 |
 | 요청 빈도 초과 | `RATE_LIMITED` | 429 |
 | 일일 분석 횟수 초과 | `DAILY_LIMIT_EXCEEDED` | 429 |

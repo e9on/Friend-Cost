@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.api.body_limit import BodyLimitMiddleware
 from app.api.rate_limit import RateLimiter
 from app.api.security_headers import SecurityHeadersMiddleware
 from app.api.routes import router
@@ -119,6 +120,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # 미들웨어는 나중에 등록한 것이 바깥에서 돈다.
     # 보안 헤더를 먼저 등록해 CORS 프리플라이트 응답에도 붙게 한다
     app.add_middleware(SecurityHeadersMiddleware)
+
+    # 본문 크기 검사는 가장 바깥에 둔다. 읽기 전에 거절해야 의미가 있다
+    app.add_middleware(BodyLimitMiddleware, max_bytes=settings.max_total_bytes)
 
     app.add_middleware(
         CORSMiddleware,
