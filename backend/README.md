@@ -64,8 +64,8 @@ Python은 **3.10 고정**이다. `pyproject.toml` 이 `>=3.10,<3.11` 로 잠가 
 ## 테스트
 
 ```bash
-.venv/Scripts/python.exe -m pytest          # 전체
-.venv/Scripts/python.exe -m pytest -q tests/unit
+.venv/Scripts/python.exe -m pytest                          # 전체
+.venv/Scripts/python.exe -m pytest tests/test_docs_consistency.py -v   # 문서·코드 일치
 ```
 
 핵심 로직은 테스트를 먼저 쓰고 구현했다. `관계-점수-계산-규칙.md` 13장의 손계산 예제가 그대로 회귀 테스트 고정값이다. **문서의 숫자와 테스트의 숫자가 어긋나면 둘 중 하나가 틀린 것이다.**

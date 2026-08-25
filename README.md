@@ -9,8 +9,8 @@
 | 영역 | 상태 |
 | --- | --- |
 | 명세 문서 | 9종 완료 |
-| 백엔드 | 완료 (테스트 372개) |
-| 프론트엔드 | 완료 (테스트 89개) |
+| 백엔드 | 완료 |
+| 프론트엔드 | 완료 |
 | **OCR·LLM 실제 연결** | **미완료 — 기본값은 스텁** |
 | 공개 준비 | 미완료 — [점검표](mdfiles/운영-보안-법적고지-명세.md) 참조 |
 
@@ -118,11 +118,13 @@ cd backend
 ## 테스트
 
 ```bash
-cd backend  && .venv/Scripts/python.exe -m pytest    # 372개
-cd frontend && npm test                              # 89개
+cd backend  && .venv/Scripts/python.exe -m pytest
+cd frontend && npm test
 ```
 
 핵심 로직은 테스트를 먼저 쓰고 구현했다. 점수 규칙 13장의 손계산 예제가 그대로 회귀 테스트 고정값이다.
+
+`tests/test_docs_consistency.py` 는 문서·백엔드·프론트의 값이 서로 어긋나지 않는지 본다. 업로드 제한을 프론트에서만 바꿔도 여기서 걸린다.
 
 ## 다음에 할 일
 

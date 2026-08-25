@@ -296,3 +296,100 @@ class TestPrivacyPrinciples:
 
         # 무료 티어를 쓰면 안 되는 이유가 사라지면 나중에 누군가 다시 붙인다
         assert "학습" in text and "탈락" in text
+
+
+FRONTEND = ROOT / "frontend" / "src"
+
+
+class TestFrontendAgreesWithBackend:
+    """프론트가 들고 있는 값이 백엔드와 어긋나지 않는지.
+
+    프론트는 헛된 왕복을 줄이려고 업로드 제한을 미리 검사한다. 그런데 그 값이
+    백엔드와 달라지면 두 가지 중 하나가 일어난다.
+
+    - 프론트가 더 느슨하면: 사용자가 서버에 가서야 거절당한다
+    - 프론트가 더 빡세면: 서버가 받아줄 파일을 프론트가 막는다
+
+    둘 다 조용히 일어나므로 여기서 잡는다.
+    """
+
+    def test_upload_limits_match(self):
+        text = (FRONTEND / "components" / "Uploader.tsx").read_text(encoding="utf-8")
+        settings = Settings()
+
+        assert f"MAX_IMAGES = {settings.max_images}" in text
+        assert (
+            f"MAX_IMAGE_BYTES = {settings.max_image_bytes // (1024 * 1024)} * 1024 * 1024"
+            in text
+        )
+        assert (
+            f"MAX_TOTAL_BYTES = {settings.max_total_bytes // (1024 * 1024)} * 1024 * 1024"
+            in text
+        )
+
+    def test_allowed_mime_types_match(self):
+        text = (FRONTEND / "components" / "Uploader.tsx").read_text(encoding="utf-8")
+
+        for mime in Settings().allowed_mime_types:
+            assert f"'{mime}'" in text, f"{mime} 이 프론트 허용 목록에 없다"
+
+    def test_job_statuses_match(self):
+        text = (FRONTEND / "api" / "types.ts").read_text(encoding="utf-8")
+
+        for status in JobStatus:
+            assert f"'{status.value}'" in text, f"{status.value} 가 프론트 타입에 없다"
+
+    def test_job_stages_match(self):
+        text = (FRONTEND / "api" / "types.ts").read_text(encoding="utf-8")
+
+        for stage in JobStage:
+            assert f"'{stage.value}'" in text, f"{stage.value} 가 프론트 타입에 없다"
+            # 각 단계마다 사용자에게 보여줄 문구가 있어야 한다
+            assert f"{stage.value}:" in text, f"{stage.value} 안내 문구가 없다"
+
+    def test_confidence_levels_match(self):
+        text = (FRONTEND / "api" / "types.ts").read_text(encoding="utf-8")
+
+        for level in Confidence:
+            assert f"'{level.value}'" in text
+
+    def test_failure_screen_covers_user_facing_errors(self):
+        """사용자가 실제로 마주칠 오류에는 안내가 있어야 한다.
+
+        모르는 코드에도 기본 안내가 나가지만, 흔한 실패에 "알 수 없는 오류"를
+        보여주면 사용자는 무엇을 고쳐야 할지 알 수 없다.
+        """
+        text = (FRONTEND / "components" / "Failure.tsx").read_text(encoding="utf-8")
+
+        # 사용자의 행동으로 이어질 수 있는 오류들
+        actionable = {
+            ErrorCode.TOO_FEW_MESSAGES,
+            ErrorCode.NO_CONVERSATION_FOUND,
+            ErrorCode.GROUP_CHAT_DETECTED,
+            ErrorCode.SPEAKER_DETECTION_FAILED,
+            ErrorCode.IMAGE_TOO_MANY,
+            ErrorCode.IMAGE_TOO_LARGE,
+            ErrorCode.IMAGE_FORMAT_UNSUPPORTED,
+            ErrorCode.RATE_LIMITED,
+            ErrorCode.DAILY_LIMIT_EXCEEDED,
+            ErrorCode.CONCURRENCY_LIMIT,
+            ErrorCode.JOB_EXPIRED,
+            ErrorCode.ANALYSIS_TIMEOUT,
+        }
+
+        missing = [code.value for code in actionable if code.value not in text]
+
+        assert not missing, f"실패 화면에 안내가 없는 오류: {missing}"
+
+    def test_api_base_path_matches(self):
+        text = (FRONTEND / "api" / "client.ts").read_text(encoding="utf-8")
+
+        assert "'/v1'" in text, "프론트가 다른 Base URL을 쓰고 있다"
+
+    def test_beacon_deletion_path_exists_on_both_sides(self):
+        """sendBeacon은 POST만 보낼 수 있어 서버가 별도 경로를 연다."""
+        front = (FRONTEND / "api" / "client.ts").read_text(encoding="utf-8")
+        back = (ROOT / "backend" / "app" / "api" / "routes.py").read_text(encoding="utf-8")
+
+        assert "/deletion" in front
+        assert "/deletion" in back
