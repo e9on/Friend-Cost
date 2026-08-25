@@ -1,0 +1,18 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.env
+.env.*
+!.env.example
+
+# 임시 업로드/분석 데이터가 절대 커밋되지 않도록
+backend/var/
+backend/tmp/
+*.png
+*.jpg
+*.jpeg
+*.webp
+!backend/tests/fixtures/**/*.png
