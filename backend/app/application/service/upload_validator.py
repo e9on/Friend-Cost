@@ -68,6 +68,10 @@ def _jpeg_dimensions(data: bytes) -> tuple[int, int] | None:
             offset += 1
             continue
         marker = data[offset + 1]
+        if marker == 0xFF:
+            # 마커 앞에 0xFF 패딩을 넣는 인코더가 있다. 한 바이트만 건너뛴다
+            offset += 1
+            continue
         if marker in (0xD8, 0xD9) or 0xD0 <= marker <= 0xD7:
             offset += 2
             continue
