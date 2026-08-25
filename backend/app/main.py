@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.rate_limit import RateLimiter
+from app.api.security_headers import SecurityHeadersMiddleware
 from app.api.routes import router
 from app.api.schemas import ErrorBody, ErrorResponse
 from app.application.service.analysis_service import AnalysisService
@@ -114,6 +115,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         settings=settings,
         on_finish=release_slot,
     )
+
+    # 미들웨어는 나중에 등록한 것이 바깥에서 돈다.
+    # 보안 헤더를 먼저 등록해 CORS 프리플라이트 응답에도 붙게 한다
+    app.add_middleware(SecurityHeadersMiddleware)
 
     app.add_middleware(
         CORSMiddleware,

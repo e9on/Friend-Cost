@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # 3.10 고정. pyproject.toml 이 >=3.10,<3.11 로 잠가 두었다
+          python-version: '3.10'
+          cache: pip
+
+      - name: 의존성 설치
+        working-directory: backend
+        run: pip install -e ".[dev]"
+
+      - name: 테스트
+        working-directory: backend
+        run: pytest -q
+
+      # 문서와 코드가 어긋나면 여기서 걸린다.
+      # 위 pytest 에 이미 포함되지만, 실패 시 원인을 바로 알 수 있게 따로 돌린다
+      - name: 문서 일관성
+        working-directory: backend
+        run: pytest tests/test_docs_consistency.py -v
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 의존성 설치
+        working-directory: frontend
+        run: npm ci
+
+      - name: 테스트
+        working-directory: frontend
+        run: npm test
+
+      - name: 빌드
+        working-directory: frontend
+        run: npm run build
