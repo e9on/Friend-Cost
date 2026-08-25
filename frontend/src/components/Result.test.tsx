@@ -23,7 +23,7 @@ function result(overrides: Partial<AnalysisResult> = {}): AnalysisResult {
   return {
     jobId: 'job-1',
     scores: {
-      friendFee: 45000,
+      friendFee: 63000,
       intimacy: 64,
       breakupRisk: 38,
       firstContactRatio: 0.63,
@@ -64,7 +64,7 @@ describe('결과 표시', () => {
   it('친구비를 원 단위로 크게 보여준다', () => {
     render(<Result result={result()} onRestart={vi.fn()} />)
 
-    expect(screen.getByText('45,000원')).toBeInTheDocument()
+    expect(screen.getByText('63,000원')).toBeInTheDocument()
   })
 
   it('리포트 본문을 모두 보여준다', () => {

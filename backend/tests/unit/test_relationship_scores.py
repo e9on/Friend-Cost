@@ -118,9 +118,9 @@ class TestFriendFee:
         "intimacy_score, balance, risk, expected",
         [
             (100, 100, 0, 100_000),
-            (64, 74, 38, 45_000),
-            (60, 60, 30, 41_000),
-            (25, 40, 65, 12_000),
+            (64, 74, 38, 63_000),
+            (60, 60, 30, 50_000),
+            (25, 40, 65, 5_000),
         ],
     )
     def test_matches_spec_table(self, intimacy_score, balance, risk, expected):

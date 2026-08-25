@@ -53,7 +53,7 @@ function canvasWith(context: FakeContext | null): HTMLCanvasElement {
 const RESULT: AnalysisResult = {
   jobId: 'job-1',
   scores: {
-    friendFee: 45000,
+    friendFee: 63000,
     intimacy: 64,
     breakupRisk: 38,
     firstContactRatio: 0.63,
@@ -81,7 +81,7 @@ describe('drawResultCard', () => {
 
     drawResultCard(canvasWith(context), RESULT)
 
-    expect(context.texts).toContain('45,000원')
+    expect(context.texts).toContain('63,000원')
   })
 
   it('여섯 지표를 모두 새긴다', () => {

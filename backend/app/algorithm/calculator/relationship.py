@@ -10,6 +10,9 @@ import math
 
 from app.algorithm.rule.constants import (
     FEE_BASE,
+    FEE_CALIBRATION_MEAN,
+    FEE_CALIBRATION_STDDEV,
+    FEE_CURVE_STRENGTH,
     FEE_MAX,
     FEE_MIN,
     FEE_UNIT,
@@ -123,18 +126,49 @@ def breakup_risk(
     )
 
 
-def friend_fee(intimacy_score: int, contact_balance: int, breakup_risk_score: int) -> int:
-    """친구비. 다른 지표가 확정된 뒤에 계산되는 파생 지표다.
+def quality_ratio(
+    intimacy_score: int, contact_balance: int, breakup_risk_score: int
+) -> float:
+    """관계의 원시 품질 비율. 0.0 ~ 1.0.
+
+    | 항 | 역할 | 범위 |
+    | --- | --- | --- |
+    | 친밀도 | 관계의 기본 가치 | 0.00 ~ 1.00 |
+    | 균형 보정 | 한쪽만 노력해도 절반은 인정 | 0.50 ~ 1.00 |
+    | 위험 할인 | 최대 50%까지만 깎는다 | 0.50 ~ 1.00 |
 
     위험도 할인을 절반까지만 적용하는 이유는, 관계가 아무리 나빠도 친구비가
     0원이 되면 결과가 모욕적으로 읽히기 때문이다.
     """
-    raw = (
-        FEE_BASE
-        * (intimacy_score / 100)
+    return (
+        (intimacy_score / 100)
         * (0.5 + 0.5 * contact_balance / 100)
         * (1 - breakup_risk_score / 200)
     )
+
+
+def _normal_cdf(value: float, mean: float, stddev: float) -> float:
+    """정규분포의 누적분포함수. 0.0 ~ 1.0."""
+    return 0.5 * (1 + math.erf((value - mean) / (stddev * math.sqrt(2))))
+
+
+def friend_fee(intimacy_score: int, contact_balance: int, breakup_risk_score: int) -> int:
+    """친구비. 다른 지표가 확정된 뒤에 계산되는 파생 지표다.
+
+    원시 품질 비율을 그대로 금액으로 바꾸지 않고 **분위수로 옮긴다.**
+
+    세 항의 곱은 값이 가운데로 몰린다. 그대로 쓰면 중간 50%가
+    33,000~46,000원에 들어와서, 서로 다른 친구를 재도 비슷한 숫자만 나온다.
+    친구 셋을 재서 38,000·41,000·44,000이 나오면 아무것도 알려주지 못한 것이다.
+
+    분위수로 옮기면 친구비가 "우리가 본 관계 분포에서 상위 몇 %"라는 뜻을
+    갖는다. 순서는 그대로 보존된다(누적분포함수는 단조 증가한다).
+    """
+    ratio = quality_ratio(intimacy_score, contact_balance, breakup_risk_score)
+    percentile = _normal_cdf(ratio, FEE_CALIBRATION_MEAN, FEE_CALIBRATION_STDDEV)
+    # 순수 분위수만 쓰면 양 끝이 뭉개진다. 원래 비율을 섞어 순서를 지킨다
+    position = FEE_CURVE_STRENGTH * percentile + (1 - FEE_CURVE_STRENGTH) * ratio
+    raw = FEE_MIN + position * (FEE_MAX - FEE_MIN)
     return int(clamp(round_to_unit(raw, FEE_UNIT), FEE_MIN, FEE_MAX))
 
 

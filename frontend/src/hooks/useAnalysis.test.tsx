@@ -27,7 +27,7 @@ vi.mock('../api/client', async () => {
 const RESULT: AnalysisResult = {
   jobId: 'job-1',
   scores: {
-    friendFee: 45000,
+    friendFee: 63000,
     intimacy: 64,
     breakupRisk: 38,
     firstContactRatio: 0.63,
@@ -89,7 +89,7 @@ describe('성공 흐름', () => {
     })
 
     await waitFor(() => expect(result.current.phase).toBe('done'))
-    expect(result.current.result?.scores.friendFee).toBe(45000)
+    expect(result.current.result?.scores.friendFee).toBe(63000)
   })
 
   it('폴링 도중 단계를 노출한다', async () => {
