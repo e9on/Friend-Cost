@@ -37,14 +37,17 @@ describe('formatPercent', () => {
 })
 
 describe('formatDuration', () => {
-  it('알 수 없음과 0초를 구분한다', () => {
-    // 표본이 모자라면 서버가 null을 준다. 즉시 답장과는 다른 뜻이다
+  it('알 수 없음과 빠른 답장을 구분한다', () => {
+    // 표본이 모자라면 서버가 null을 준다. 빠른 답장과는 다른 뜻이다
     expect(formatDuration(null)).toBe('알 수 없음')
-    expect(formatDuration(0)).toBe('0초')
+    expect(formatDuration(0)).toBe('1분 이내')
   })
 
-  it('1분 미만은 초로', () => {
-    expect(formatDuration(45)).toBe('45초')
+  it('1분 미만은 초 단위로 쓰지 않는다', () => {
+    // 카톡 시각은 분 단위다. "45초"는 없는 정밀도를 주장하는 것이다
+    expect(formatDuration(45)).toBe('1분 이내')
+    expect(formatDuration(59)).toBe('1분 이내')
+    expect(formatDuration(60)).toBe('1분')
   })
 
   it('1시간 미만은 분으로', () => {

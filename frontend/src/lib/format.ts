@@ -13,12 +13,17 @@ export function formatPercent(ratio: number): string {
 /**
  * 초를 사람이 읽는 시간으로 바꾼다.
  *
- * 표본이 모자라면 서버가 `null` 을 준다. 0초와 "알 수 없음"은 다른 뜻이므로
+ * 표본이 모자라면 서버가 `null` 을 준다. "알 수 없음"과 "빠름"은 다른 뜻이므로
  * 0으로 뭉뚱그리지 않는다.
+ *
+ * 1분 미만을 초 단위로 쓰지 않는 이유는 **원본에 그만한 정밀도가 없기**
+ * 때문이다. 카카오톡 캡처의 시각은 분 단위라, 같은 분에 오간 메시지는
+ * 간격이 0초로 계산된다. 화면에 "0초"라고 쓰면 가진 적 없는 정밀도를
+ * 주장하는 셈이고, 사용자는 즉답으로 읽는다.
  */
 export function formatDuration(seconds: number | null): string {
   if (seconds === null) return '알 수 없음'
-  if (seconds < 60) return `${seconds}초`
+  if (seconds < 60) return '1분 이내'
 
   const minutes = Math.round(seconds / 60)
   if (minutes < 60) return `${minutes}분`
