@@ -8,7 +8,7 @@
 
 import asyncio
 import logging
-from typing import Sequence
+from typing import Callable, Sequence
 
 from app.application.service.pipeline import AnalysisPipeline, to_app_error
 from app.application.service.upload_validator import UploadedImage, validate_uploads
@@ -28,11 +28,14 @@ class AnalysisService:
         blob_store: BlobStore,
         pipeline: AnalysisPipeline,
         settings: Settings,
+        on_finish: Callable[[str], None] | None = None,
     ) -> None:
         self.job_store = job_store
         self.blob_store = blob_store
         self.pipeline = pipeline
         self.settings = settings
+        # 분석이 끝났을 때 호출된다. 자원 반납을 폴링에 의존하지 않기 위한 통로다
+        self.on_finish = on_finish
         self._tasks: dict[str, asyncio.Task] = {}
 
     async def create(self, images: Sequence[UploadedImage]) -> AnalysisJob:
@@ -65,6 +68,16 @@ class AnalysisService:
             self.blob_store.delete_all(job.job_id)
             self.job_store.save(job)
             self._tasks.pop(job.job_id, None)
+            self._notify_finished(job.job_id)
+
+    def _notify_finished(self, job_id: str) -> None:
+        """자원 반납 통지. 여기서 난 오류가 분석 결과를 덮지 않게 한다."""
+        if self.on_finish is None:
+            return
+        try:
+            self.on_finish(job_id)
+        except Exception:
+            logger.exception("종료 통지 처리 중 오류 job=%s", job_id)
 
     async def wait_for(self, job_id: str) -> None:
         """해당 작업이 끝날 때까지 기다린다. 테스트와 종료 처리에 쓴다."""

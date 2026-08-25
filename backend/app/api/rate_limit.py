@@ -61,6 +61,24 @@ class SlidingWindowLimiter:
                 return 1
             return max(1, int(hits[0] + self._window - self._clock()) + 1)
 
+    def prune(self) -> int:
+        """창이 지난 키를 통째로 지운다.
+
+        `_prune` 는 창 밖의 기록만 버리고 키는 남긴다. 서로 다른 IP가 계속
+        들어오면 빈 항목이 무한히 쌓이므로 주기적으로 걷어내야 한다.
+        기준 명세 9장의 "제한 창이 지나면 폐기한다"가 이 뜻이다.
+        """
+        now = self._clock()
+        with self._lock:
+            stale = [key for key in self._hits if not self._prune(key, now)]
+            for key in stale:
+                del self._hits[key]
+        return len(stale)
+
+    def tracked_keys(self) -> int:
+        with self._lock:
+            return len(self._hits)
+
 
 class ConcurrencyGuard:
     """동시에 진행 중인 분석 수를 센다."""
@@ -127,3 +145,18 @@ class RateLimiter:
         if code is ErrorCode.CONCURRENCY_LIMIT:
             return 5
         return self.create_minute.retry_after(ip)
+
+    def prune(self) -> int:
+        """만료된 IP 기록을 모두 걷어낸다."""
+        return (
+            self.create_minute.prune()
+            + self.create_day.prune()
+            + self.poll_minute.prune()
+        )
+
+    def tracked_keys(self) -> int:
+        return (
+            self.create_minute.tracked_keys()
+            + self.create_day.tracked_keys()
+            + self.poll_minute.tracked_keys()
+        )

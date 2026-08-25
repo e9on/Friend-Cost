@@ -57,8 +57,9 @@ async def _sweep_loop(app: FastAPI) -> None:
         try:
             await asyncio.sleep(SWEEP_INTERVAL_SECONDS)
             removed = app.state.service.sweep()
-            if removed:
-                logger.info("만료된 작업 %d건 정리", removed)
+            stale_keys = app.state.limiter.prune()
+            if removed or stale_keys:
+                logger.info("만료 작업 %d건, IP 기록 %d건 정리", removed, stale_keys)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -76,12 +77,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
 
     app.state.settings = settings
-    app.state.service = AnalysisService(
-        job_store=InMemoryJobStore(ttl_seconds=settings.ttl_seconds),
-        blob_store=InMemoryBlobStore(),
-        pipeline=AnalysisPipeline.from_settings(settings),
-        settings=settings,
-    )
     app.state.limiter = RateLimiter(
         per_minute=settings.rate_limit_per_minute,
         per_day=settings.daily_analysis_limit,
@@ -90,6 +85,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     # 분석이 끝나면 동시 실행 슬롯을 돌려주기 위한 job_id -> ip 대응표
     app.state.pending_release = {}
+
+    def release_slot(job_id: str) -> None:
+        """분석이 끝나는 즉시 동시 실행 슬롯을 돌려준다.
+
+        폴링 시점에 반납하면, 결과를 보지 않고 떠난 사용자가 그 IP의 슬롯을
+        영영 붙들고 있게 된다.
+        """
+        ip = app.state.pending_release.pop(job_id, None)
+        if ip:
+            app.state.limiter.release(ip)
+
+    app.state.service = AnalysisService(
+        job_store=InMemoryJobStore(ttl_seconds=settings.ttl_seconds),
+        blob_store=InMemoryBlobStore(),
+        pipeline=AnalysisPipeline.from_settings(settings),
+        settings=settings,
+        on_finish=release_slot,
+    )
 
     app.add_middleware(
         CORSMiddleware,

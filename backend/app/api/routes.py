@@ -75,11 +75,8 @@ async def get_status(request: Request, job_id: str):
     limiter.check_poll(_client_ip(request))
     job = service.status(job_id)
 
-    if job.status.is_terminal:
-        ip = request.app.state.pending_release.pop(job_id, None)
-        if ip:
-            limiter.release(ip)
-
+    # 동시 실행 슬롯은 분석이 끝나는 시점에 이미 반납되었다.
+    # 폴링에 반납을 걸면 결과를 보지 않고 떠난 사용자가 슬롯을 붙들게 된다.
     return StatusResponse.of(job, settings.poll_after_seconds)
 
 
