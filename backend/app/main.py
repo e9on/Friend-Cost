@@ -122,7 +122,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[],  # 배포 시 서비스 도메인만 넣는다. 와일드카드 금지
+        allow_origins=list(settings.cors_origins),  # FC_CORS_ORIGINS 로 설정
         allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
         allow_headers=["*"],
         allow_credentials=False,

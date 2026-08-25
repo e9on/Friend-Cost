@@ -9,6 +9,8 @@
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import field_validator
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -65,7 +67,19 @@ class Settings(BaseSettings):
 
     ocr_api_key: str | None = None
 
+    # 배포 시 프론트 도메인을 넣는다. 기본값이 비어 있어 브라우저에서 호출되지
+    # 않는다. 실수로 열린 채 배포되는 것보다, 설정을 잊어 안 되는 편이 낫다.
+    # 후자는 즉시 드러난다.
+    cors_origins: tuple[str, ...] = ()
+
     log_level: str = "INFO"
+
+    @field_validator("cors_origins")
+    @classmethod
+    def _reject_wildcard(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        if any(origin.strip() == "*" for origin in value):
+            raise ValueError("CORS에 와일드카드를 쓰지 않는다")
+        return value
 
 
 @lru_cache

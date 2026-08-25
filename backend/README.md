@@ -125,7 +125,9 @@ Provider는 전송만 한다. 프롬프트는 `app/ai/prompt/`, 응답 검증은
 
 인스턴스를 늘려야 할 시점이 오면 `app/infrastructure/storage/base.py` 의 인터페이스를 외부 저장소 구현으로 갈아 끼운다. 기준 명세 6장이 이 전제와 한계를 적어두었다.
 
-CORS 허용 Origin은 기본값이 비어 있다. 배포 시 `app/main.py` 에서 서비스 도메인을 넣는다. 와일드카드는 쓰지 않는다.
+CORS 허용 Origin은 기본값이 비어 있다. `FC_CORS_ORIGINS` 로 프론트 도메인을 넣는다. 와일드카드는 값 검증에서 거부한다.
+
+Cloud Run 배포는 [`deploy/cloudrun.md`](deploy/cloudrun.md) 참조.
 
 ## 남은 일
 
