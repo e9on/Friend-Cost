@@ -8,9 +8,11 @@
 
 import asyncio
 import logging
+import time
 from typing import Callable, Sequence
 
 from app.application.service.pipeline import AnalysisPipeline, to_app_error
+from app.common.audit import audit
 from app.application.service.upload_validator import UploadedImage, validate_uploads
 from app.common.errors import AppError, ErrorCode
 from app.config.settings import Settings
@@ -19,6 +21,10 @@ from app.domain.model.result import AnalysisResult
 from app.infrastructure.storage.base import BlobStore, JobStore
 
 logger = logging.getLogger(__name__)
+
+
+def _elapsed_ms(started: float) -> int:
+    return int((time.perf_counter() - started) * 1000)
 
 
 class AnalysisService:
@@ -61,6 +67,7 @@ class AnalysisService:
         return job
 
     async def _execute(self, job: AnalysisJob, keys: list[str]) -> None:
+        started = time.perf_counter()
         try:
             images = [self.blob_store.get(key) for key in keys]
             result = await asyncio.wait_for(
@@ -68,8 +75,17 @@ class AnalysisService:
                 timeout=self.settings.total_timeout_seconds,
             )
             job.succeed(result)
+            audit("analysis.finished", ms=_elapsed_ms(started))
         except BaseException as exc:  # 취소를 포함해 어떤 경우에도 상태를 남긴다
-            job.fail(to_app_error(exc))
+            error = to_app_error(exc)
+            # 어느 단계에서 멈췄는지가 운영에 가장 중요하다
+            audit(
+                "analysis.failed",
+                code=error.code.value,
+                stage=job.stage.value if job.stage else None,
+                ms=_elapsed_ms(started),
+            )
+            job.fail(error)
         finally:
             # 분석이 끝나면 원본 이미지는 더 필요 없다. TTL을 기다리지 않고 지운다
             self.blob_store.delete_all(job.job_id)
@@ -84,7 +100,7 @@ class AnalysisService:
         try:
             self.on_finish(job_id)
         except Exception:
-            logger.exception("종료 통지 처리 중 오류 job=%s", job_id)
+            logger.exception("종료 통지 처리 중 오류")
 
     async def wait_for(self, job_id: str) -> None:
         """해당 작업이 끝날 때까지 기다린다. 테스트와 종료 처리에 쓴다."""

@@ -17,6 +17,7 @@ from app.ai.agent.report import ReportAgent
 from app.ai.parser import parse
 from app.ai.provider.stub import StubLlmProvider
 from app.algorithm.calculator import calculate_scores
+from app.common.audit import audit
 from app.common.errors import AppError, ErrorCode
 from app.config.settings import Settings
 from app.domain.model.job import AnalysisJob
@@ -117,13 +118,15 @@ class AnalysisPipeline:
             self.report_agent.run(analysis, scores), timeout=settings.llm_timeout_seconds
         )
 
-        logger.info(
-            "분석 완료 job=%s 이미지=%d 메시지=%d 샘플링=%s 신뢰도=%s",
-            job.job_id,
-            convo.meta.image_count,
-            convo.meta.message_count,
-            convo.meta.sampled,
-            scores.confidence.value,
+        # jobId 는 남기지 않는다. 별도 인증이 없어 그것이 곧 접근 토큰이다
+        audit(
+            "analysis.completed",
+            images=convo.meta.image_count,
+            messages=convo.meta.message_count,
+            dropped=convo.meta.dropped_count,
+            sampled=convo.meta.sampled,
+            coverage=round(convo.meta.time_coverage, 2),
+            confidence=scores.confidence.value,
         )
 
         return AnalysisResult(
