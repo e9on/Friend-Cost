@@ -238,15 +238,54 @@ Analysis Agent가 하는 일은 **한국어 반말 대화의 관계적 뉘앙스
 
 ### 8.4 진행 순서
 
+도구가 준비되어 있다. `backend/tools/` 에 있다.
+
+**1단계 — 캡처를 모은다**
+
+대화 한 건을 디렉터리 하나에 담고, 파일명에 번호를 붙인다. **파일명 순서가 시간 순서**로 쓰인다.
+
 ```text
-1. 캡처 20세트 확보
-2. OCR 후보 2종(Vision, CLOVA)에 같은 이미지 투입
-   -> 화자 판별 정확도로 1차 선별
-3. 선별된 OCR로 ConversationData 20건 생성
-4. LLM 후보 2종(Groq, Haiku)에 같은 대화 투입
-   -> 스키마 준수율과 결과 분산 비교
-5. 조합 확정 -> 설정값 변경 -> 기준 명세 13장에서 해당 항목 제거
+caps/
+├── 대화01/  01.png 02.png 03.png
+├── 대화02/  01.png 02.png
+└── ...
 ```
+
+**2단계 — OCR 후보를 잰다**
+
+```bash
+python tools/evaluate_ocr.py --images caps/대화01 --engine google_vision --key $KEY     --out fixtures/대화01.json --review review/대화01.txt
+```
+
+블록 좌우 판별 비율, 시각 복원률, 처리 시간이 나온다. 한쪽 화자만 판별되거나 시각 복원률이 낮으면 경고를 띄운다.
+
+**화자 판별 정확도는 자동으로 잴 수 없다.** 정답이 없기 때문이다. `--review` 로 나온 파일을 훑어 대화가 "나 → 상대 → 나"로 자연스럽게 이어지는지 본다. 한 사람이 혼자 묻고 답하는 것처럼 보이면 판별이 틀린 것이다.
+
+> 검토 파일에는 대화 원문이 들어간다. **확인이 끝나면 지운다.**
+
+**3단계 — 저장된 픽스처로 LLM 후보를 잰다**
+
+OCR을 다시 돌릴 필요가 없다. 2단계에서 저장한 `OcrPage` JSON을 그대로 쓴다.
+
+```bash
+python tools/evaluate_llm.py --provider groq --model llama-3.3-70b-versatile     --key $GROQ_KEY --fixtures fixtures/ --repeat 3
+
+python tools/evaluate_llm.py --provider anthropic --model claude-haiku-4-5     --key $ANTHROPIC_KEY --fixtures fixtures/
+```
+
+성공률, 지연, 건당 비용, 재현성, **결과 분산**이 나온다. 친밀도 표준편차가 5 미만이면 경고를 띄운다.
+
+**4단계 — 확정한다**
+
+```bash
+FC_OCR_ENGINE=google_vision
+FC_OCR_API_KEY=...
+FC_LLM_PROVIDER=groq
+FC_LLM_MODEL=llama-3.3-70b-versatile
+FC_LLM_API_KEY=...
+```
+
+확정 후 이 문서와 `운영-보안-법적고지-명세.md` 4.3의 제3자 제공 목록을 갱신한다. 코드만 바꾸고 고지를 방치하면 사실과 다른 안내가 된다.
 
 ## 9. 미확인 항목
 

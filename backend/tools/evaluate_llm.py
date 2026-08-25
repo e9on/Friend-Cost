@@ -27,6 +27,11 @@ from pathlib import Path
 from typing import Sequence
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from _console import force_utf8  # noqa: E402
+
+force_utf8()
 
 from app.ai.agent.analysis import AnalysisAgent  # noqa: E402
 from app.ai.agent.report import ReportAgent  # noqa: E402
