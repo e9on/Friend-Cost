@@ -7,6 +7,8 @@
 
 import { useRef, useState } from 'react'
 
+import { Legal } from './Legal'
+
 const MAX_IMAGES = 10
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 const MAX_TOTAL_BYTES = 20 * 1024 * 1024
@@ -25,6 +27,9 @@ interface Picked {
 export function Uploader({ onStart, busy }: Props) {
   const [picked, setPicked] = useState<Picked[]>([])
   const [problem, setProblem] = useState<string | null>(null)
+  // 업로더가 상대방 동의를 받았는지 기술적으로 확인할 방법은 없다.
+  // 확인시켜서 무엇을 하고 있는지 자각하게 하는 것이 우리가 할 수 있는 전부다.
+  const [agreed, setAgreed] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   function validate(files: File[]): string | null {
@@ -118,10 +123,21 @@ export function Uploader({ onStart, busy }: Props) {
 
       {problem && <p className="problem">{problem}</p>}
 
+      <label className="consent">
+        <input
+          type="checkbox"
+          checked={agreed}
+          onChange={(event) => setAgreed(event.target.checked)}
+        />
+        <span>
+          내가 참여한 1:1 대화이고, 만 14세 이상입니다.
+        </span>
+      </label>
+
       <button
         type="button"
         className="cta"
-        disabled={busy || picked.length === 0}
+        disabled={busy || picked.length === 0 || !agreed}
         onClick={() => onStart(picked.map((item) => item.file))}
       >
         {busy ? '분석 준비 중…' : '분석 시작'}
@@ -131,6 +147,8 @@ export function Uploader({ onStart, busy }: Props) {
         올린 이미지는 분석이 끝나는 즉시 지워지고, 결과도 20분 뒤 자동으로 사라져요.
         계정도 기록도 남지 않습니다.
       </p>
+
+      <Legal />
     </section>
   )
 }

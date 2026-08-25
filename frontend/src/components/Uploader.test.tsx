@@ -31,6 +31,11 @@ function select(input: HTMLInputElement, files: File[]) {
   fireEvent.change(input, { target: { files } })
 }
 
+/** 동의 체크. 분석 시작의 전제 조건이다. */
+async function agree() {
+  await userEvent.click(screen.getByRole('checkbox'))
+}
+
 describe('업로드 화면', () => {
   it('처음에는 분석 버튼이 잠겨 있다', () => {
     renderUploader()
@@ -42,6 +47,7 @@ describe('업로드 화면', () => {
     const { input } = renderUploader()
 
     select(input, [file('a.png'), file('b.png')])
+    await agree()
 
     expect(screen.getAllByRole('img')).toHaveLength(2)
     expect(screen.getByAltText('1번째 캡처 미리보기')).toBeInTheDocument()
@@ -70,6 +76,7 @@ describe('업로드 화면', () => {
   it('분석 시작을 누르면 고른 파일을 넘긴다', async () => {
     const { input, onStart } = renderUploader()
     select(input, [file('a.png')])
+    await agree()
 
     await userEvent.click(screen.getByRole('button', { name: '분석 시작' }))
 
@@ -87,6 +94,53 @@ describe('업로드 화면', () => {
     renderUploader()
 
     expect(screen.getByText(/분석이 끝나는 즉시 지워지고/)).toBeInTheDocument()
+  })
+})
+
+describe('법적 고지', () => {
+  it('본인 대화와 연령을 확인시킨다', () => {
+    // 업로더가 상대방 동의를 받았는지 기술로 확인할 방법은 없다.
+    // 무엇을 하고 있는지 자각하게 하는 것이 우리가 할 수 있는 전부다
+    renderUploader()
+
+    expect(
+      screen.getByText(/내가 참여한 1:1 대화이고, 만 14세 이상입니다/),
+    ).toBeInTheDocument()
+  })
+
+  it('동의하지 않으면 이미지를 골라도 시작할 수 없다', async () => {
+    const { input } = renderUploader()
+
+    select(input, [file('a.png')])
+
+    expect(screen.getByRole('button', { name: '분석 시작' })).toBeDisabled()
+  })
+
+  it('동의만 하고 이미지가 없어도 시작할 수 없다', async () => {
+    renderUploader()
+
+    await agree()
+
+    expect(screen.getByRole('button', { name: '분석 시작' })).toBeDisabled()
+  })
+
+  it('동의를 되돌리면 다시 잠긴다', async () => {
+    const { input } = renderUploader()
+    select(input, [file('a.png')])
+    await agree()
+    expect(screen.getByRole('button', { name: '분석 시작' })).toBeEnabled()
+
+    await agree()
+
+    expect(screen.getByRole('button', { name: '분석 시작' })).toBeDisabled()
+  })
+
+  it('약관 링크 자리를 비워두지 않는다', () => {
+    // 링크가 준비되기 전에는 준비 중임을 드러낸다. 조용히 비워두면
+    // 공개 직전에 잊어버린다
+    renderUploader()
+
+    expect(screen.getByText(/이용약관과 개인정보 처리방침/)).toBeInTheDocument()
   })
 })
 
