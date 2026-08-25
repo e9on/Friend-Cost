@@ -1,0 +1,263 @@
+"""문서와 코드가 어긋나지 않는지 검사한다.
+
+기준 명세 12장은 "데이터 구조나 명칭을 바꿀 때는 데이터 계약 명세를 먼저
+고치고 나머지를 따라 고친다"고 정했다. 그런데 사람이 지키는 규칙은 언젠가
+깨진다. 코드를 고치고 문서를 잊는 쪽이 훨씬 흔하다.
+
+그래서 **문서의 숫자와 코드의 상수를 직접 비교한다.** 어느 한쪽만 바뀌면
+여기서 걸린다.
+
+이 테스트가 깨지면 둘 중 하나가 틀린 것이다. 어느 쪽인지는 사람이 판단한다.
+"""
+
+import re
+from pathlib import Path
+
+import pytest
+
+from app.algorithm.rule import constants
+from app.common.errors import ErrorCode, http_status_of, is_retryable
+from app.config.settings import Settings
+from app.domain.model.report import ReportData
+from app.domain.model.score import FEE_MAX, FEE_MIN
+from app.domain.value_object.enums import Confidence, JobStage, JobStatus
+
+DOCS = Path(__file__).resolve().parents[2] / "mdfiles"
+
+CONTRACT = DOCS / "데이터-계약-명세.md"
+SCORING = DOCS / "관계-점수-계산-규칙.md"
+API = DOCS / "API-명세.md"
+BASE = DOCS / "친구비-측정기-서비스-기준-명세.md"
+OCR = DOCS / "OCR-Parser-명세.md"
+
+
+def read(path: Path) -> str:
+    assert path.exists(), f"문서가 없다: {path.name}"
+    return path.read_text(encoding="utf-8")
+
+
+class TestDocsExist:
+    """기준 명세가 예고한 하위 문서가 실제로 있는지."""
+
+    def test_every_referenced_doc_exists(self):
+        text = read(BASE)
+        referenced = set(re.findall(r"`([^`]+\.md)`", text))
+
+        missing = [name for name in referenced if not (DOCS / name).exists()]
+
+        assert not missing, f"기준 명세가 가리키는 문서가 없다: {missing}"
+
+    def test_sub_docs_point_back_to_the_base_spec(self):
+        for path in DOCS.glob("*.md"):
+            if path.name.startswith("친구비-측정기"):
+                continue
+            assert "친구비-측정기-서비스-기준-명세.md" in read(path), (
+                f"{path.name} 이 상위 문서를 가리키지 않는다"
+            )
+
+    def test_every_doc_has_a_revision_history(self):
+        for path in DOCS.glob("*.md"):
+            assert "개정 이력" in read(path), f"{path.name} 에 개정 이력이 없다"
+
+
+@pytest.fixture(scope="module")
+def error_rows() -> dict[str, tuple[int, bool]]:
+    """데이터 계약 11장의 오류 코드 표를 읽는다."""
+    parsed: dict[str, tuple[int, bool]] = {}
+    for line in read(CONTRACT).splitlines():
+        match = re.match(
+            r"\|\s*`([A-Z_]+)`\s*\|\s*(\d{3})\s*\|\s*(가능|불가)\s*\|", line
+        )
+        if match:
+            code, status, retry = match.groups()
+            parsed[code] = (int(status), retry == "가능")
+    return parsed
+
+
+@pytest.fixture(scope="module")
+def scoring_rows() -> dict[str, float]:
+    """관계 점수 계산 규칙 3장의 상수 표를 읽는다."""
+    parsed: dict[str, float] = {}
+    for line in read(SCORING).splitlines():
+        match = re.match(r"\|\s*`([A-Z_]+)`\s*\|\s*([\d.]+)", line)
+        if match:
+            name, value = match.groups()
+            parsed[name] = float(value)
+    return parsed
+
+
+@pytest.fixture(scope="module")
+def api_text() -> str:
+    return read(API)
+
+
+@pytest.fixture(scope="module")
+def settings() -> Settings:
+    return Settings()
+
+
+@pytest.fixture(scope="module")
+def report_limits() -> dict[str, int]:
+    """리포트 글자 수 상한을 검증 규칙에서 읽는다."""
+    fields = ReportData.model_fields
+    found: dict[str, int] = {}
+    for name in ("headline", "summary", "advice"):
+        for meta in fields[name].metadata:
+            if hasattr(meta, "max_length"):
+                found[name] = meta.max_length
+    return found
+
+
+class TestErrorCodes:
+    """데이터 계약 11장의 오류 코드 표와 코드가 일치하는지."""
+
+    def test_document_lists_every_code(self, error_rows):
+        in_code = {member.value for member in ErrorCode}
+
+        assert in_code == set(error_rows), (
+            f"문서에만: {set(error_rows) - in_code} / 코드에만: {in_code - set(error_rows)}"
+        )
+
+    def test_http_status_matches(self, error_rows):
+        mismatched = {
+            code: (documented, http_status_of(ErrorCode(code)))
+            for code, (documented, _) in error_rows.items()
+            if documented != http_status_of(ErrorCode(code))
+        }
+
+        assert not mismatched, f"HTTP 상태가 다르다 (문서, 코드): {mismatched}"
+
+    def test_retryable_matches(self, error_rows):
+        mismatched = {
+            code: (documented, is_retryable(ErrorCode(code)))
+            for code, (_, documented) in error_rows.items()
+            if documented != is_retryable(ErrorCode(code))
+        }
+
+        assert not mismatched, f"재시도 가능 여부가 다르다 (문서, 코드): {mismatched}"
+
+
+class TestScoringConstants:
+    """관계 점수 계산 규칙 3장의 상수 표와 코드가 일치하는지."""
+
+    def test_documented_constants_match_the_code(self, scoring_rows):
+        assert scoring_rows, "상수 표를 읽지 못했다"
+
+        mismatched = {}
+        for name, documented in scoring_rows.items():
+            actual = getattr(constants, name, None)
+            if actual is None:
+                mismatched[name] = ("코드에 없음", documented)
+            elif float(actual) != documented:
+                mismatched[name] = (documented, actual)
+
+        assert not mismatched, f"상수가 다르다 (문서, 코드): {mismatched}"
+
+    def test_fee_bounds_agree_across_modules(self):
+        # 친구비 범위가 도메인 모델과 알고리즘 상수 두 곳에 있다
+        assert FEE_MIN == constants.FEE_MIN
+        assert FEE_MAX == constants.FEE_MAX
+
+    def test_reply_ceiling_is_reachable(self):
+        """6시간 넘는 간격은 버려지므로 상한이 그보다 크면 100점이 안 나온다."""
+        assert constants.REPLY_CEIL_SECONDS <= constants.REPLY_MAX_SECONDS
+
+
+class TestApiLimits:
+    """API 명세 4장·9장의 제한값과 설정 기본값이 일치하는지."""
+
+    def test_image_count(self, api_text, settings):
+        assert f"1 ~ {settings.max_images}개" in api_text
+
+    def test_image_size(self, api_text, settings):
+        assert f"{settings.max_image_bytes // (1024 * 1024)} MB" in api_text
+        assert f"{settings.max_total_bytes // (1024 * 1024)} MB" in api_text
+
+    def test_minimum_resolution(self, api_text, settings):
+        assert f"{settings.min_image_side}px" in api_text
+
+    def test_rate_limits(self, api_text, settings):
+        assert f"분당 {settings.rate_limit_per_minute}회" in api_text
+        assert f"하루 {settings.daily_analysis_limit}회" in api_text
+        assert f"{settings.concurrent_analysis_limit}건" in api_text
+        assert f"분당 {settings.poll_rate_limit_per_minute}회" in api_text
+
+    def test_timeouts(self, api_text, settings):
+        assert f"{settings.total_timeout_seconds}초" in api_text
+        assert f"{settings.ocr_timeout_seconds}초" in api_text
+        assert f"{settings.llm_timeout_seconds}초" in api_text
+
+    def test_ttl(self, api_text, settings):
+        minutes = settings.ttl_seconds // 60
+        assert f"**{minutes}분**" in api_text
+        assert f"{minutes}분" in read(BASE)
+
+
+class TestEnumValues:
+    """상태값과 단계가 문서와 일치하는지."""
+
+    def test_job_statuses_are_documented(self):
+        text = read(CONTRACT)
+
+        for status in JobStatus:
+            assert f"`{status.value}`" in text, f"{status.value} 가 문서에 없다"
+
+    def test_job_stages_are_documented_in_order(self):
+        text = read(CONTRACT)
+        expected = " → ".join(f"`{stage.value}`" for stage in JobStage)
+
+        assert expected in text, "단계 순서가 문서와 다르다"
+
+    def test_confidence_levels_are_documented(self):
+        text = read(CONTRACT)
+
+        for level in Confidence:
+            assert f"`{level.value}`" in text
+
+
+class TestReportLimits:
+    """리포트 글자 수 상한이 문서와 검증에서 같은지."""
+
+    def test_documented_limits_match_validation(self, report_limits):
+        text = read(CONTRACT)
+
+        assert len(report_limits) == 3, f"상한을 읽지 못했다: {report_limits}"
+        for name, value in report_limits.items():
+            assert f"{value}자" in text, f"{name} 상한 {value}자가 문서에 없다"
+
+    def test_section_count_is_documented(self):
+        assert "2~3개" in read(CONTRACT)
+
+
+class TestOcrRequirements:
+    """OCR 명세가 좌표 필수를 못 박고 있는지."""
+
+    def test_coordinates_are_stated_as_mandatory(self):
+        text = read(OCR)
+
+        assert "필수" in text
+        assert "bounding box" in text or "좌표" in text
+
+    def test_base_spec_repeats_the_requirement(self):
+        # 이 요구가 사라지면 서비스 지표 절반이 계산 불가능해진다
+        assert "bounding box 좌표를 반환해야 한다" in read(BASE)
+
+
+class TestPrivacyPrinciples:
+    """개인정보 원칙이 문서에서 사라지지 않았는지."""
+
+    def test_no_permanent_storage(self):
+        assert "영구 저장 금지" in read(BASE)
+
+    def test_conversation_text_is_not_returned(self):
+        assert "대화 원문은 클라이언트로 되돌려 보내지 않는다" in read(BASE)
+
+    def test_result_excludes_raw_conversation(self):
+        assert "응답에 포함하지 않는다" in read(CONTRACT)
+
+    def test_free_tier_warning_survives(self):
+        report = DOCS / "AI-모델-선정-보고서.md"
+        text = read(report)
+
+        # 무료 티어를 쓰면 안 되는 이유가 사라지면 나중에 누군가 다시 붙인다
+        assert "학습" in text and "탈락" in text
