@@ -16,3 +16,8 @@ backend/tmp/
 *.jpeg
 *.webp
 !backend/tests/fixtures/**/*.png
+
+# 커버리지 리포트는 생성물이다
+coverage/
+htmlcov/
+.coverage
