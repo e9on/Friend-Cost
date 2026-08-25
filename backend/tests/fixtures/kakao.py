@@ -91,6 +91,15 @@ class ScreenBuilder:
         )
 
 
+def message_text(image_index: int, turn: int) -> str:
+    """화면마다 다른 내용을 준다.
+
+    실제 캡처는 화면이 다르면 내용도 다르다. 모든 화면에 같은 글을 넣으면
+    중복 제거가 전부 지워버려서, 그걸 전제로 한 테스트가 거짓으로 통과한다.
+    """
+    return f"메시지 {image_index}-{turn}"
+
+
 def simple_chat(turns: int = 20, image_index: int = 0, start_hour: int = 9) -> OcrPage:
     """me/peer가 번갈아 말하는 평범한 대화 한 화면."""
     screen = ScreenBuilder(image_index=image_index)
@@ -99,7 +108,7 @@ def simple_chat(turns: int = 20, image_index: int = 0, start_hour: int = 9) -> O
     hour = start_hour
     for turn in range(turns):
         stamp = f"오전 {hour}:{minute:02d}" if hour < 12 else f"오후 {hour - 12 or 12}:{minute:02d}"
-        text = f"메시지 {turn}"
+        text = message_text(image_index, turn)
         if turn % 2 == 0:
             screen.me(text, at=stamp)
         else:

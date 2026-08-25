@@ -44,7 +44,15 @@ MERGE_LINE_FACTOR: Final = 0.4
 MERGE_ALIGN_RATIO: Final = 0.03  # 같은 말풍선으로 볼 정렬 오차 (이미지 폭 대비)
 NAME_LABEL_MAX_LEN: Final = 12
 NAME_LABEL_GAP_FACTOR: Final = 1.2
-DEDUPE_WINDOW: Final = 10
+# 겹침을 찾을 때 살펴보는 메시지 수.
+#
+# 사용자가 화면을 얼마나 겹쳐 찍을지는 우리가 정할 수 없다. 창보다 많이
+# 겹치면 겹침을 **아예 찾지 못한다.** 일부만 지우는 것이 아니라 하나도
+# 못 지운다. 그러면 메시지 수가 부풀려져 연락 균형도와 답장 속도가 함께
+# 틀어지는데, 결과는 그럴듯하게 나오므로 알아채기 어렵다.
+#
+# 비교 비용은 창 크기의 제곱이지만 이 규모에서는 무시할 수 있다.
+DEDUPE_WINDOW: Final = 60
 DEDUPE_MIN_RUN: Final = 3
 DEFAULT_MAX_MESSAGES: Final = 120
 SAMPLE_HEAD: Final = 30

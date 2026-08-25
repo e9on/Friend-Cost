@@ -247,3 +247,69 @@ class TestScale:
         assert convo.meta.sampled is True
         assert convo.meta.message_count == 120
         assert len({m.index for m in convo.messages}) == 120
+
+
+def scroll_page(numbers, index: int):
+    """스크롤 캡처 한 장.
+
+    화자는 **메시지 번호**로 정한다. 화면 안의 위치로 정하면 같은 메시지가
+    페이지마다 다른 화자가 되어, 실제 캡처에서는 일어나지 않는 상황이 된다.
+    """
+    blocks = []
+    for position, number in enumerate(numbers):
+        y = 100 + position * 100
+        text = f"메시지 {number}"
+        is_mine = number % 2 == 0
+        blocks.append(mine(text, y) if is_mine else theirs(text, y))
+        stamp_x = 600 if is_mine else 470
+        blocks.append(block(f"오전 9:{number % 60:02d}", stamp_x, y + 16, 96, 28))
+    return page(blocks, index=index, height=100 + len(numbers) * 100 + 200)
+
+
+class TestScrollOverlap:
+    """스크롤 캡처가 겹치는 정도는 사용자가 정한다.
+
+    겹친 구간을 지우지 못하면 메시지 수가 부풀려지고, 연락 균형도와
+    답장 속도가 함께 틀어진다. 결과는 그럴듯하게 나오므로 알아채기 어렵다.
+    """
+
+    def parse_two(self, first_range, second_range):
+        convo = parse(
+            [
+                scroll_page(range(*first_range), 0),
+                scroll_page(range(*second_range), 1),
+            ],
+            min_messages=1,
+        )
+        return [m.text for m in convo.messages]
+
+    @pytest.mark.parametrize("overlap", [3, 5, 10, 20, 30])
+    def test_overlap_of_various_sizes_is_removed(self, overlap):
+        texts = self.parse_two((0, 40), (40 - overlap, 70))
+
+        duplicated = sorted({t for t in texts if texts.count(t) > 1})
+
+        assert not duplicated, f"{overlap}개 겹침에서 {len(duplicated)}개가 남았다"
+
+    def test_message_count_is_not_inflated(self):
+        texts = self.parse_two((0, 40), (20, 60))
+
+        # 0~59 까지 60개여야 한다
+        assert len(texts) == 60
+
+    def test_order_survives_deduplication(self):
+        texts = self.parse_two((0, 40), (20, 60))
+
+        numbers = [int(text.split()[1]) for text in texts]
+        assert numbers == sorted(numbers)
+
+    def test_no_overlap_keeps_everything(self):
+        texts = self.parse_two((0, 20), (20, 40))
+
+        assert len(texts) == 40
+
+    def test_a_fully_repeated_page_collapses(self):
+        """같은 화면을 두 번 올리는 실수."""
+        texts = self.parse_two((0, 30), (0, 30))
+
+        assert len(texts) == 30

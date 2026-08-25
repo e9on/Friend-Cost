@@ -8,7 +8,7 @@ import pytest
 from app.ai.parser import parse
 from app.common.errors import AppError, ErrorCode
 from app.domain.value_object.enums import Speaker, TimeSource
-from tests.fixtures.kakao import ScreenBuilder, simple_chat
+from tests.fixtures.kakao import ScreenBuilder, message_text, simple_chat
 
 
 class TestSpeakerAssignment:
@@ -182,16 +182,17 @@ class TestCrossImageDedupe:
         # 앞 이미지의 마지막 네 개를 그대로 반복한 뒤 새 내용을 잇는다
         for turn in (6, 7, 8, 9):
             stamp = f"오전 9:{turn * 5:02d}"
+            repeated = message_text(0, turn)
             if turn % 2 == 0:
-                overlap.me(f"메시지 {turn}", at=stamp)
+                overlap.me(repeated, at=stamp)
             else:
-                overlap.peer(f"메시지 {turn}", at=stamp)
+                overlap.peer(repeated, at=stamp)
         overlap.me("새로운 내용", at="오전 10:00")
 
         convo = parse([first, overlap.build()], min_messages=1)
 
         texts = [m.text for m in convo.messages]
-        assert texts.count("메시지 9") == 1
+        assert texts.count(message_text(0, 9)) == 1
         assert texts[-1] == "새로운 내용"
 
     def test_keeps_short_coincidental_repeats(self):
