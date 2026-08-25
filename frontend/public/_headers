@@ -1,0 +1,24 @@
+# 정적 호스팅(Netlify, Cloudflare Pages 등)의 헤더 설정.
+# 운영-보안-법적고지-명세.md 6.2 참조.
+#
+# 백엔드는 미들웨어로 같은 헤더를 붙인다. 프론트는 정적 파일이라
+# 호스팅 쪽에 맡겨야 한다.
+
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  # connect-src 는 배포 시 실제 API 도메인으로 좁힌다.
+  # img-src 에 blob: 이 필요한 이유는 업로드 미리보기와 결과 카드가
+  # objectURL 을 쓰기 때문이다.
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+
+# 해시가 붙은 자산은 오래 캐시해도 안전하다
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# 진입 문서는 캐시하지 않는다. 배포가 즉시 반영되어야 한다
+/index.html
+  Cache-Control: no-cache
