@@ -46,8 +46,15 @@ class Settings(BaseSettings):
 
     # --- 교체 지점 ---
     # 실제 모델은 성능 평가 이후에 붙인다. 그때 이 값만 바꾸면 된다.
-    llm_provider: Literal["stub"] = "stub"
+    llm_provider: Literal["stub", "anthropic"] = "stub"
     ocr_engine: Literal["stub"] = "stub"
+
+    # anthropic Provider를 쓸 때만 의미가 있다.
+    # 어떤 모델을 쓸지는 tools/evaluate_llm.py 의 평가 결과로 정한다.
+    llm_model: str = "claude-haiku-4-5"
+    # 구조화된 추출 작업이라 낮은 추론 강도로 충분하다. 비용 목표와도 맞는다.
+    llm_effort: Literal["low", "medium", "high", "xhigh", "max"] = "low"
+    anthropic_api_key: str | None = None
 
     log_level: str = "INFO"
 

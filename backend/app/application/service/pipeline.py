@@ -36,6 +36,15 @@ def _build_llm_provider(settings: Settings):
     """
     if settings.llm_provider == "stub":
         return StubLlmProvider()
+    if settings.llm_provider == "anthropic":
+        from app.ai.provider.anthropic import AnthropicProvider
+
+        return AnthropicProvider(
+            model=settings.llm_model,
+            effort=settings.llm_effort,
+            timeout_seconds=settings.llm_timeout_seconds,
+            api_key=settings.anthropic_api_key,
+        )
     raise ValueError(f"알 수 없는 llm provider: {settings.llm_provider}")
 
 
