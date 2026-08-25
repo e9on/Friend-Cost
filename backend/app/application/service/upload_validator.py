@@ -148,6 +148,11 @@ def validate_uploads(
             # 글자를 읽을 수 없을 만큼 작으면 OCR을 돌려봐야 시간과 비용만 든다
             raise AppError(ErrorCode.IMAGE_FORMAT_UNSUPPORTED)
 
+        if width * height > settings.max_image_pixels:
+            # 파일이 작아도 화소가 많을 수 있다. 균일한 색 PNG는 33바이트로도
+            # 30000x30000을 선언한다. 그대로 넘기면 OCR 비용이 샌다
+            raise AppError(ErrorCode.IMAGE_FORMAT_UNSUPPORTED)
+
         validated.append(
             ValidatedImage(data=image.data, mime_type=mime_type, width=width, height=height)
         )

@@ -26,6 +26,17 @@ class Settings(BaseSettings):
     max_image_bytes: int = 5 * 1024 * 1024
     max_total_bytes: int = 20 * 1024 * 1024
     min_image_side: int = 320  # 이보다 작으면 글자를 읽을 수 없다
+
+    # 총 화소 수 상한. 파일 크기와는 별개다.
+    #
+    # 균일한 색으로 채운 PNG는 33바이트로도 30000x30000을 선언할 수 있다.
+    # 용량만 검사하면 그대로 OCR로 넘어가 처리 시간과 과금이 그대로 나간다.
+    # 우리가 직접 디코드하지 않아 서버가 죽지는 않지만 비용이 샌다.
+    #
+    # 한 변이 아니라 총 화소를 보는 이유는, 변마다 상한을 두면
+    # 8000x8000(6400만 화소) 같은 조합을 놓치기 때문이다.
+    # 스크롤 캡처는 세로로 길어서 1080x12000(1300만 화소) 정도는 정상이다.
+    max_image_pixels: int = 40_000_000
     allowed_mime_types: tuple[str, ...] = ("image/png", "image/jpeg", "image/webp")
 
     # --- 요청 제한 (API 명세 9장) ---
