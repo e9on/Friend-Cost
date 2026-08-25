@@ -97,7 +97,7 @@ export function Uploader({ onStart, busy }: Props) {
           <div className="thumbs">
             {picked.map((item, index) => (
               <div className="thumb" key={item.url}>
-                <img src={item.url} alt="" />
+                <img src={item.url} alt={`${index + 1}번째 캡처 미리보기`} />
                 <button
                   type="button"
                   className="thumb-remove"
