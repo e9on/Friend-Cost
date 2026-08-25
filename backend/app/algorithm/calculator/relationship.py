@@ -72,6 +72,26 @@ def reply_delay_score(peer_reply_seconds: int | None) -> int:
     return clamp_score(100 * ratio)
 
 
+def contact_imbalance_score(contact_balance: int, first_contact_ratio: float) -> int:
+    """연락이 한쪽으로 기운 정도.
+
+    두 가지를 함께 본다. 서로 다른 것을 재기 때문이다.
+
+    - **연락 균형도**: 누가 더 많이 말하는가
+    - **먼저 연락 비율**: 누가 대화를 여는가
+
+    메시지 수는 반반인데 항상 한쪽이 먼저 말을 거는 관계가 있다. 균형도만
+    보면 완벽해 보이지만, 한쪽이 멈추면 대화도 멈추는 관계다. 사용자가
+    가장 알고 싶어 하는 것이 바로 이 차이다.
+
+    방향은 따지지 않는다. 내가 늘 먼저 걸든 상대가 늘 먼저 걸든, 한쪽만
+    끌고 가는 관계는 마찬가지로 위태롭다.
+    """
+    count_imbalance = 100 - contact_balance
+    initiation_imbalance = 200 * abs(first_contact_ratio - 0.5)
+    return clamp_score(0.5 * count_imbalance + 0.5 * initiation_imbalance)
+
+
 def promise_break_score(promises: PromiseSignals) -> int:
     if promises.proposed == 0:
         return 0
@@ -90,11 +110,12 @@ def breakup_risk(
     analysis: RelationshipAnalysisData,
     contact_balance: int,
     peer_reply_seconds: int | None,
+    first_contact_ratio: float = 0.5,
 ) -> int:
     """손절 위험도."""
     return clamp_score(
         W_RISK_CONFLICT * analysis.conflict_level
-        + W_RISK_IMBALANCE * (100 - contact_balance)
+        + W_RISK_IMBALANCE * contact_imbalance_score(contact_balance, first_contact_ratio)
         + W_RISK_PEER_EFFORT * (100 - analysis.effort_level.peer)
         + W_RISK_REPLY_DELAY * reply_delay_score(peer_reply_seconds)
         + W_RISK_PROMISE * promise_break_score(analysis.promise_signals)

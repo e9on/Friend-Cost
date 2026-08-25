@@ -41,7 +41,7 @@ class TestCalculateScores:
         balance = contact_balance(convo)
         replies = reply_seconds(convo)
         expected_intimacy = intimacy(data, balance)
-        expected_risk = breakup_risk(data, balance, replies.peer)
+        expected_risk = breakup_risk(data, balance, replies.peer, first_contact_ratio(convo))
 
         assert scores.contact_balance == balance
         assert scores.avg_reply_seconds == replies

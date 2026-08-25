@@ -21,6 +21,7 @@ from tests.builders import analysis
 
 SPEC_BALANCE = 74
 SPEC_PEER_REPLY = 1860
+SPEC_FIRST_CONTACT = 0.63
 
 
 def meta(message_count: int, time_coverage: float, sampled: bool = False) -> ConversationMeta:
@@ -97,15 +98,19 @@ class TestMoneyRiskScore:
 
 class TestBreakupRisk:
     def test_worked_example_from_spec(self):
-        assert breakup_risk(analysis(), SPEC_BALANCE, SPEC_PEER_REPLY) == 38
+        assert (
+            breakup_risk(analysis(), SPEC_BALANCE, SPEC_PEER_REPLY, SPEC_FIRST_CONTACT)
+            == 38
+        )
 
     def test_ideal_relationship_is_zero(self):
         ideal = analysis(effort=(100, 100), conflict=0, promises=(5, 5, 0), money=(0, 0, 0))
-        assert breakup_risk(ideal, 100, 60) == 0
+        assert breakup_risk(ideal, 100, 60, 0.5) == 0
 
     def test_worst_relationship_is_hundred(self):
         worst = analysis(effort=(0, 0), conflict=100, promises=(5, 0, 5), money=(3, 0, 0))
-        assert breakup_risk(worst, 0, 21_600) == 100
+        # 먼저 연락까지 완전히 한쪽으로 기운 경우
+        assert breakup_risk(worst, 0, 21_600, 1.0) == 100
 
 
 class TestFriendFee:

@@ -39,15 +39,16 @@ def calculate_scores(
     sessions = split_sessions(convo)
     balance = contact_balance(convo)
     replies = reply_seconds(convo)
+    initiation = first_contact_ratio(convo)
 
     intimacy_score = intimacy(analysis, balance)
-    risk_score = breakup_risk(analysis, balance, replies.peer)
+    risk_score = breakup_risk(analysis, balance, replies.peer, initiation)
 
     return RelationshipScoreData(
         friend_fee=friend_fee(intimacy_score, balance, risk_score),
         intimacy=intimacy_score,
         breakup_risk=risk_score,
-        first_contact_ratio=first_contact_ratio(convo),
+        first_contact_ratio=initiation,
         avg_reply_seconds=replies,
         contact_balance=balance,
         confidence=confidence_of(convo.meta, session_count=len(sessions)),
