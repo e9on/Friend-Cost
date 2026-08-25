@@ -59,6 +59,12 @@ class _Raw:
     epoch: int | None = None
     rolled_over: bool = False
     anchored: bool = False
+    # 날짜 구분선 자리를 표시하는 표식. 메시지가 아니며 시각 복원 뒤 버려진다
+    date_anchor: date | None = None
+
+    @property
+    def is_anchor(self) -> bool:
+        return self.date_anchor is not None
 
 
 def _is_time_label(text: str) -> bool:
@@ -112,8 +118,12 @@ def _merge_blocks(blocks: list[OcrBlock], role: BlockRole, page_width: int) -> l
     return groups
 
 
-def _collect_raw(page: OcrPage) -> tuple[list[_Raw], int, list[date]]:
-    """한 이미지에서 메시지 후보와 날짜 앵커를 뽑는다."""
+def _collect_raw(page: OcrPage) -> tuple[list[_Raw], int]:
+    """한 이미지에서 메시지 후보를 뽑는다.
+
+    날짜 구분선은 버리지 않고 위치를 지키는 표식으로 남긴다. 앵커가 화면
+    중간에서 바뀔 수 있고, 그 순서를 잃으면 이후 메시지의 날짜가 틀어진다.
+    """
     usable = [b for b in page.blocks if b.confidence >= MIN_BLOCK_CONFIDENCE]
     dropped = len(page.blocks) - len(usable)
 
@@ -122,7 +132,7 @@ def _collect_raw(page: OcrPage) -> tuple[list[_Raw], int, list[date]]:
 
     _detect_group_chat(others, page.width)
 
-    anchors: list[date] = []
+    markers: list[_Raw] = []
     body_blocks: dict[BlockRole, list[OcrBlock]] = {BlockRole.ME: [], BlockRole.PEER: []}
 
     for block in others:
@@ -130,7 +140,15 @@ def _collect_raw(page: OcrPage) -> tuple[list[_Raw], int, list[date]]:
         if role is BlockRole.CENTER:
             found = parse_date_line(block.text)
             if found:
-                anchors.append(found)
+                markers.append(
+                    _Raw(
+                        speaker=Speaker.ME,  # 표식이라 화자는 의미가 없다
+                        text="",
+                        y=block.box.center_y,
+                        image_index=page.image_index,
+                        date_anchor=found,
+                    )
+                )
             dropped += 1
             continue
         body_blocks[role].append(block)
@@ -150,9 +168,10 @@ def _collect_raw(page: OcrPage) -> tuple[list[_Raw], int, list[date]]:
                 )
             )
 
-    raws.sort(key=lambda r: r.y)
-    _attach_time_labels(raws, time_labels)
-    return raws, dropped, anchors
+    _attach_time_labels(sorted(raws, key=lambda r: r.y), time_labels)
+
+    combined = sorted(raws + markers, key=lambda r: r.y)
+    return combined, dropped
 
 
 def _attach_time_labels(raws: list[_Raw], labels: Sequence[OcrBlock]) -> None:
@@ -172,19 +191,30 @@ def _attach_time_labels(raws: list[_Raw], labels: Sequence[OcrBlock]) -> None:
             nearest.clock = clock
 
 
-def _restore_timestamps(raws: list[_Raw], anchors: list[date]) -> None:
+def _restore_timestamps(raws: list[_Raw]) -> None:
     """시계 표기에 날짜를 붙여 절대 시각으로 만든다.
 
-    날짜 구분선이 하나도 없으면 가상 기준일 위에 배치한다. 절대 날짜는 의미가
-    없고 간격만 유효하며, 그 값은 API 응답에 노출되지 않는다.
+    **모든 이미지를 하나의 연속된 흐름으로 본다.** 스크롤 캡처는 한 대화를
+    잘라놓은 것이고, 날짜 구분선은 보통 첫 화면에만 찍힌다. 이미지마다 앵커를
+    초기화하면 뒤 이미지가 가상 기준일로 되돌아가 시간이 거꾸로 흐른다.
+
+    날짜 구분선이 한 번도 나오지 않으면 가상 기준일 위에 배치한다. 절대 날짜는
+    의미가 없고 간격만 유효하며, 그 값은 API 응답에 노출되지 않는다.
     """
-    has_anchor = bool(anchors)
-    current = anchors[0] if has_anchor else VIRTUAL_EPOCH_DATE
+    current = VIRTUAL_EPOCH_DATE
+    seen_anchor = False
     previous_minutes: int | None = None
 
     for raw in raws:
+        if raw.is_anchor:
+            current = raw.date_anchor
+            seen_anchor = True
+            previous_minutes = None  # 날짜가 바뀌었으니 시각 역행 판단을 새로 시작한다
+            continue
+
         if raw.clock is None:
             continue
+
         hour, minute = raw.clock
         minutes = hour * 60 + minute
         if previous_minutes is not None and minutes < previous_minutes:
@@ -192,7 +222,7 @@ def _restore_timestamps(raws: list[_Raw], anchors: list[date]) -> None:
             raw.rolled_over = True
         previous_minutes = minutes
         raw.epoch = to_epoch(current, hour, minute)
-        raw.anchored = has_anchor
+        raw.anchored = seen_anchor
 
 
 def _dedupe(pages_raws: list[list[_Raw]]) -> tuple[list[_Raw], int]:
@@ -260,11 +290,14 @@ def parse(
     dropped = 0
 
     for page in sorted(pages, key=lambda p: p.image_index):
-        raws, page_dropped, anchors = _collect_raw(page)
+        raws, page_dropped = _collect_raw(page)
         dropped += page_dropped
-        _restore_timestamps(raws, anchors)
         pages_raws.append(raws)
 
+    # 시각 복원은 이미지 경계를 넘어 한 번에 한다. 앵커가 이어져야 하기 때문이다
+    _restore_timestamps([raw for raws in pages_raws for raw in raws])
+
+    pages_raws = [[raw for raw in raws if not raw.is_anchor] for raws in pages_raws]
     merged, overlap_dropped = _dedupe(pages_raws)
     dropped += overlap_dropped
 

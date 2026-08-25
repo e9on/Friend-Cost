@@ -214,6 +214,56 @@ class TestCrossImageDedupe:
         assert [m.text for m in convo.messages].count("ㅇㅇ") == 2
 
 
+class TestAnchorCarriesAcrossImages:
+    def test_date_anchor_from_the_first_image_applies_to_later_ones(self):
+        """스크롤 캡처는 하나의 대화다.
+
+        날짜 구분선은 보통 첫 화면에만 찍힌다. 이미지가 바뀔 때 앵커를
+        초기화하면 뒤 이미지가 가상 기준일로 되돌아가 시간이 거꾸로 흐른다.
+        """
+        first = (
+            ScreenBuilder(image_index=0)
+            .center("2026년 8월 25일 화요일")
+            .me("첫 화면", at="오전 9:00")
+            .peer("응", at="오전 9:05")
+            .build()
+        )
+        second = (
+            ScreenBuilder(image_index=1)
+            .me("두번째 화면", at="오전 9:10")
+            .peer("그래", at="오전 9:15")
+            .build()
+        )
+
+        convo = parse([first, second], min_messages=1)
+
+        stamps = [m.sent_at for m in convo.messages]
+        assert all(a <= b for a, b in zip(stamps, stamps[1:])), "시간이 거꾸로 흘렀다"
+        assert convo.meta.span_seconds == 15 * 60
+
+    def test_span_stays_sane_across_many_images(self):
+        pages = [simple_chat(turns=10, image_index=i, start_hour=9 + i) for i in range(4)]
+
+        convo = parse(pages, min_messages=1)
+
+        # 네 화면이 몇 시간짜리 대화여야지 몇 년짜리가 되면 안 된다
+        assert convo.meta.span_seconds is not None
+        assert convo.meta.span_seconds < 2 * 24 * 3600
+
+    def test_rollover_carries_across_an_image_boundary(self):
+        first = (
+            ScreenBuilder(image_index=0)
+            .center("2026년 8월 25일")
+            .me("자기 전", at="오후 11:50")
+            .build()
+        )
+        second = ScreenBuilder(image_index=1).peer("자정 지나서", at="오전 12:10").build()
+
+        convo = parse([first, second], min_messages=1)
+
+        assert convo.messages[1].sent_at - convo.messages[0].sent_at == 20 * 60
+
+
 class TestSampling:
     def test_keeps_everything_below_the_limit(self):
         convo = parse([simple_chat(turns=20)], min_messages=1, max_messages=120)
