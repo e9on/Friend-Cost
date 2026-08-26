@@ -22,23 +22,26 @@ export interface FormattedFee {
  *
  * 그래서 **방향은 문구로, 금액은 절댓값으로** 나눠 보여준다. 숫자에까지
  * 부호를 붙이면 같은 말을 두 번 하는 셈이다.
+ *
+ * 문구는 명사구가 아니라 **할 일**로 쓴다. "이 친구가 나에게 낼 친구비"보다
+ * "친구에게 친구비를 요청하세요"가 무엇을 뜻하는지 바로 읽힌다.
  */
 export function formatFee(value: number): FormattedFee {
   if (value > 0) {
     return {
       direction: 'receive',
-      label: '이 친구가 나에게 낼 친구비',
+      label: '친구에게 친구비를 요청하세요',
       amount: formatWon(value),
     }
   }
   if (value < 0) {
     return {
       direction: 'pay',
-      label: '내가 이 친구에게 낼 친구비',
+      label: '친구에게 친구비를 주어야 합니다',
       amount: formatWon(-value),
     }
   }
-  return { direction: 'even', label: '서로 비긴 사이', amount: formatWon(0) }
+  return { direction: 'even', label: '서로 비긴 사이입니다', amount: formatWon(0) }
 }
 
 export function formatPercent(ratio: number): string {

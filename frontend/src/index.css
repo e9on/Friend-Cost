@@ -82,6 +82,14 @@ body {
   line-height: 1.6;
 }
 
+.lede-note {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  opacity: 0.85;
+}
+
 .dropzone {
   border: 2px dashed var(--line);
   border-radius: var(--radius);
@@ -329,6 +337,19 @@ body {
   font-weight: 800;
   color: var(--accent);
   letter-spacing: -0.03em;
+}
+
+/* 방향에 따라 색을 나눈다.
+ *
+ * 음수에 --danger 를 쓰지 않는 것은 의도적이다. 빨간색은 '나쁨'으로
+ * 읽히는데, 음수의 뜻은 "상대가 나보다 더 기여했다"이지 나쁜 관계가
+ * 아니다. 색까지 경고로 만들면 문구로 애써 푼 뜻이 도로 뒤집힌다. */
+.fee-pay .fee-value {
+  color: var(--ok);
+}
+
+.fee-even .fee-value {
+  color: var(--muted);
 }
 
 .headline {

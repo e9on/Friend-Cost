@@ -72,6 +72,9 @@ export function Uploader({ onStart, busy }: Props) {
       <p className="lede">
         카카오톡 1:1 대화 캡처를 올리면 두 사람의 관계를 숫자로 보여드려요.
       </p>
+      <p className="lede-note">
+        단체 대화방은 분석할 수 없어요. 지표가 두 사람 사이를 전제로 하거든요.
+      </p>
 
       <div
         className="dropzone"

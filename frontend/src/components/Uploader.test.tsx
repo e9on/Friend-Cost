@@ -183,3 +183,18 @@ describe('업로드 사전 검증', () => {
     expect(screen.getByText(/전체 용량이 20MB/)).toBeInTheDocument()
   })
 })
+
+describe('지원 범위 안내', () => {
+  /**
+   * 단체방은 감지되면 거절한다. 그 사실을 결과에서야 알려주면 사용자는
+   * 캡처를 고르고 올리는 수고를 다 한 뒤에 실패를 본다.
+   *
+   * 실제로 단체방 캡처를 올려 GROUP_CHAT_DETECTED 로 거절된 일이 있었다.
+   * 화면 어디에도 안 된다는 말이 없었다.
+   */
+  it('단체방은 안 된다고 미리 알려준다', () => {
+    render(<Uploader onStart={() => undefined} busy={false} />)
+
+    expect(screen.getByText(/단체(방| 대화)/)).toBeInTheDocument()
+  })
+})

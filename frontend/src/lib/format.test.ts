@@ -105,20 +105,28 @@ describe('formatFee', () => {
    * 화면에 "-36,000원"만 띄우면 읽히지 않는다. 마이너스가 '나쁜 관계'로
    * 오해되기 쉽다. 방향을 문구로 풀고 금액은 절댓값으로 보여준다.
    */
-  it('양수면 상대가 나에게 낸다', () => {
+  it('양수면 친구에게 요청하라고 한다', () => {
+    // 명사구("이 친구가 나에게 낼 친구비")보다 할 일을 말하는 편이
+    // 무엇을 뜻하는지 바로 읽힌다
     const fee = formatFee(34000)
 
     expect(fee.direction).toBe('receive')
     expect(fee.amount).toBe('34,000원')
-    expect(fee.label).toContain('나에게')
+    expect(fee.label).toContain('요청')
   })
 
-  it('음수면 내가 상대에게 낸다', () => {
+  it('음수면 내가 주어야 한다고 한다', () => {
     const fee = formatFee(-36000)
 
     expect(fee.direction).toBe('pay')
     expect(fee.amount).toBe('36,000원')
-    expect(fee.label).toContain('내가')
+    expect(fee.label).toContain('주어야')
+  })
+
+  it('방향마다 문구가 다르다', () => {
+    const labels = [formatFee(1000), formatFee(-1000), formatFee(0)].map((f) => f.label)
+
+    expect(new Set(labels).size).toBe(3)
   })
 
   it('음수여도 금액에 마이너스를 붙이지 않는다', () => {
