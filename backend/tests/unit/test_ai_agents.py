@@ -185,3 +185,80 @@ def _scores():
     from app.algorithm.calculator import calculate_scores
 
     return calculate_scores(conversation(alternating(20)), analysis())
+
+
+class TestReplySpeedUnit:
+    """리포트에 초 단위를 넘기지 않는다.
+
+    실측 리포트에 이런 문장이 실렸다.
+
+        평균 답장 속도는 내가 1305초, 상대가 1834초로 내가 더 빠르게…
+
+    **1305초로 생각하는 사람은 없다.** 점수 블록이 `평균답장속도초` 라는
+    이름으로 날숫자를 넘기니 모델이 그대로 옮겨 적는다.
+
+    숫자가 아니라 완성된 문자열("22분")을 넘긴다. 그러면 모델이 단위를
+    지어낼 여지가 없다.
+    """
+
+    def _block(self, me, peer):
+        from app.ai.agent.report import _render_scores
+        from app.domain.model.score import (
+            RelationshipScoreData,
+            ReplySeconds,
+        )
+        from app.domain.value_object.enums import Confidence
+
+        return _render_scores(
+            RelationshipScoreData(
+                friend_fee=12_000,
+                intimacy=60,
+                breakup_risk=20,
+                first_contact_ratio=0.5,
+                avg_reply_seconds=ReplySeconds(me=me, peer=peer),
+                contact_balance=90,
+                confidence=Confidence.HIGH,
+            )
+        )
+
+    def test_초_단위_날숫자를_넘기지_않는다(self):
+        block = self._block(1305, 1834)
+
+        assert "1305" not in block
+        assert "1834" not in block
+
+    def test_분으로_적어_넘긴다(self):
+        block = self._block(1305, 1834)
+
+        assert "22분" in block
+        assert "31분" in block
+
+    def test_한_시간이_넘으면_시간과_분으로(self):
+        block = self._block(5400, 7200)
+
+        assert "1시간 30분" in block
+        assert "2시간" in block
+
+    def test_일_분_미만은_일_분_이내로(self):
+        block = self._block(45, 30)
+
+        assert "1분 이내" in block
+
+    def test_표본이_없으면_모른다고_적는다(self):
+        # 0분과 구별되어야 한다. 빠른 답장과 표본 없음은 다른 뜻이다
+        block = self._block(None, 600)
+
+        assert "알 수 없음" in block
+
+    def test_화면과_같은_방식으로_반올림한다(self):
+        """프론트의 `formatDuration` 과 눈금이 같아야 한다.
+
+        절사하면 화면에 "22분"이라 적힌 값이 글에는 "21분"으로 쓰인다.
+        같은 숫자를 두 곳이 달리 말하는 셈이다.
+        """
+        from app.ai.agent.report import _minutes
+
+        # 1305초 = 21.75분. 절사하면 21, 반올림하면 22
+        assert _minutes(1305) == "22분"
+        assert _minutes(1834) == "31분"
+        assert _minutes(90) == "2분"

@@ -8,6 +8,8 @@
 
 import json
 
+from app.common.numeric import round_half_up
+
 from app.ai.agent.base import call_and_validate
 from app.ai.prompt.templates import REPORT_SYSTEM, report_user_prompt
 from app.ai.provider.base import LlmProvider, LlmRequest
@@ -18,6 +20,35 @@ from app.domain.model.score import RelationshipScoreData
 MAX_OUTPUT_TOKENS = 700
 
 
+def _minutes(seconds: int | None) -> str:
+    """답장 속도를 사람이 쓰는 단위로 적는다.
+
+    **숫자가 아니라 완성된 문자열을 넘긴다.** 날숫자에 `초` 라는 이름만
+    붙여 보냈더니 모델이 그대로 옮겨 적었다.
+
+        평균 답장 속도는 내가 1305초, 상대가 1834초로 내가 더 빠르게…
+
+    1305초로 생각하는 사람은 없다. 문자열로 넘기면 모델이 단위를 지어낼
+    여지가 없다.
+
+    표본이 없을 때(``None``)를 "0분"이 아니라 "알 수 없음"으로 적는 이유는,
+    빠른 답장과 표본 없음이 다른 뜻이기 때문이다.
+    """
+    if seconds is None:
+        return "알 수 없음"
+    if seconds < 60:
+        return "1분 이내"
+
+    # 절사가 아니라 반올림이다. 화면(`frontend/src/lib/format.ts`)이
+    # `Math.round` 를 쓰므로 여기서 절사하면 같은 값을 두 곳이 달리 말한다.
+    # 화면에 "22분"이라 적혀 있는데 글에는 "21분"이라고 쓰이는 식이다
+    minutes = round_half_up(seconds / 60)
+    if minutes < 60:
+        return f"{minutes}분"
+    hours, rest = divmod(minutes, 60)
+    return f"{hours}시간 {rest}분" if rest else f"{hours}시간"
+
+
 def _render_scores(scores: RelationshipScoreData) -> str:
     reply = scores.avg_reply_seconds
     return json.dumps(
@@ -26,7 +57,7 @@ def _render_scores(scores: RelationshipScoreData) -> str:
             "친밀도": scores.intimacy,
             "손절위험도": scores.breakup_risk,
             "먼저연락비율": scores.first_contact_ratio,
-            "평균답장속도초": {"나": reply.me, "상대": reply.peer},
+            "평균답장속도": {"나": _minutes(reply.me), "상대": _minutes(reply.peer)},
             "연락균형도": scores.contact_balance,
             # 관계의 신뢰도가 아니라 **이 분석을 얼마나 믿을 수 있는지**다.
             # "신뢰도"로 적어 보냈더니 모델이 관계의 신뢰로 읽고
