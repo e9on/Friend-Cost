@@ -65,7 +65,7 @@ gcloud run deploy friend-cost-api \
   --timeout 300 \
   --memory 512Mi \
   --cpu 1 \
-  --set-env-vars "FC_LLM_PROVIDER=groq,FC_LLM_MODEL=llama-3.3-70b-versatile,FC_OCR_ENGINE=google_vision" \
+  --set-env-vars "FC_LLM_PROVIDER=groq,FC_LLM_MODEL=qwen/qwen3.8-27b,FC_LLM_REASONING_EFFORT=none,FC_OCR_ENGINE=google_vision" \
   --set-secrets "FC_LLM_API_KEY=fc-llm-key:latest,FC_OCR_API_KEY=fc-ocr-key:latest"
 ```
 

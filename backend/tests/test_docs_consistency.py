@@ -441,3 +441,49 @@ class TestPromptSpec:
             assert f"{limit}자" in section, (
                 f"{name} 상한 {limit}자가 문서 5.4에 없다"
             )
+
+
+class TestEnvExample:
+    """`.env.example` 이 설정을 모두 담고 있는지.
+
+    설정을 추가하고 예시 파일을 잊는 일이 실제로 있었다.
+    `FC_LLM_REASONING_EFFORT` 를 넣을 때 그랬다. 그 값이 비면 추론 모델에서
+    400이 나는데, 예시에 없으면 배포하는 사람이 알 길이 없다.
+    """
+
+    def test_모든_설정이_예시에_있다(self):
+        example = read(ROOT / "backend" / ".env.example")
+
+        missing = [
+            f"FC_{name.upper()}"
+            for name in Settings.model_fields
+            if f"FC_{name.upper()}=" not in example
+        ]
+
+        assert not missing, f".env.example 에 없는 설정: {missing}"
+
+    def test_예시에_실제_키가_들어_있지_않다(self):
+        # 예시 파일은 커밋된다. 실수로 키를 적으면 그대로 공개된다.
+        # 주석에는 "gsk_ 로 시작한다" 같은 설명이 있으므로 값만 본다
+        example = read(ROOT / "backend" / ".env.example")
+
+        for line in example.splitlines():
+            if line.startswith("#") or "=" not in line:
+                continue
+            value = line.split("=", 1)[1].strip()
+            for prefix in ("gsk_", "sk-", "AIza"):
+                assert not value.startswith(prefix), (
+                    f"예시에 실제 키로 보이는 값이 있다: {line.split('=')[0]}"
+                )
+
+    def test_채택한_모델이_예시와_문서에_같이_적혀_있다(self):
+        example = read(ROOT / "backend" / ".env.example")
+        report = read(DOCS / "AI-모델-선정-보고서.md")
+
+        model = next(
+            line.split("=", 1)[1].strip()
+            for line in example.splitlines()
+            if line.startswith("FC_LLM_MODEL=")
+        )
+
+        assert model in report, f"예시의 모델 {model} 이 선정 보고서에 없다"
