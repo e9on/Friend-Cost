@@ -28,7 +28,11 @@ def _render_scores(scores: RelationshipScoreData) -> str:
             "먼저연락비율": scores.first_contact_ratio,
             "평균답장속도초": {"나": reply.me, "상대": reply.peer},
             "연락균형도": scores.contact_balance,
-            "신뢰도": scores.confidence.value,
+            # 관계의 신뢰도가 아니라 **이 분석을 얼마나 믿을 수 있는지**다.
+            # "신뢰도"로 적어 보냈더니 모델이 관계의 신뢰로 읽고
+            # "신뢰도는 high로 평가됩니다"라고 썼다. 사용자는 그것을
+            # "이 관계는 믿을 만하다"로 읽는다. AI-프롬프트-명세 5.2
+            "분석신뢰도": scores.confidence.value,
         },
         ensure_ascii=False,
     )

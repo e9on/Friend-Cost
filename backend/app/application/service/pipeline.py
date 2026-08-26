@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Sequence
 
 from app.ai.agent.analysis import AnalysisAgent
+from app.ai.guard.verbatim import strip_verbatim
 from app.ai.agent.report import ReportAgent
 from app.ai.parser import parse
 from app.ai.provider.stub import StubLlmProvider
@@ -110,6 +111,9 @@ class AnalysisPipeline:
         analysis = await asyncio.wait_for(
             self.analysis_agent.run(convo), timeout=settings.llm_timeout_seconds
         )
+        # 모델이 notableMoments 에 대화 원문을 담아 보내는 일이 실제로 있었다.
+        # 프롬프트로 금지해두었지만 지시는 강제가 아니다. AI-프롬프트-명세 3.5
+        analysis = strip_verbatim(analysis, convo)
 
         job.advance(JobStage.SCORING)
         scores = calculate_scores(convo, analysis)
