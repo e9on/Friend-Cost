@@ -164,7 +164,13 @@ async def synthesize(count: int) -> list[Sample]:
     return samples
 
 
-def build_provider(name: str, model: str, key: str | None, base_url: str | None):
+def build_provider(
+    name: str,
+    model: str,
+    key: str | None,
+    base_url: str | None,
+    reasoning_effort: str | None = None,
+):
     if name == "stub":
         from app.ai.provider.stub import StubLlmProvider
 
@@ -179,7 +185,11 @@ def build_provider(name: str, model: str, key: str | None, base_url: str | None)
     if not key:
         raise SystemExit(f"{name} 를 쓰려면 --key 가 필요합니다")
     return OpenAiCompatibleProvider(
-        name=name, model=model, api_key=key, base_url=base_url
+        name=name,
+        model=model,
+        api_key=key,
+        base_url=base_url,
+        reasoning_effort=reasoning_effort,
     )
 
 
@@ -214,9 +224,19 @@ async def run_one(provider, sample: Sample) -> Outcome:
     )
 
 
-async def evaluate(provider, model: str, samples: Sequence[Sample]) -> Report:
+async def evaluate(
+    provider, model: str, samples: Sequence[Sample], delay: float = 0.0
+) -> Report:
+    """대화를 하나씩 넣는다.
+
+    `delay` 는 분당 토큰 한도를 넘지 않기 위한 간격이다. 0으로 두면 한도에
+    걸려 429 가 쏟아지고, 그러면 성공률이 모델 품질이 아니라 우리 요청 속도를
+    재게 된다.
+    """
     report = Report(provider=provider.name, model=model)
     for index, sample in enumerate(samples, start=1):
+        if index > 1 and delay:
+            await asyncio.sleep(delay)
         print(f"  [{index}/{len(samples)}] {sample.label} …", end="", flush=True)
         outcome = await run_one(provider, sample)
         report.outcomes.append(outcome)
@@ -325,6 +345,11 @@ async def main() -> None:
     parser.add_argument("--model", default="stub")
     parser.add_argument("--key", default=None)
     parser.add_argument("--base-url", default=None)
+    parser.add_argument(
+        "--reasoning-effort",
+        default=None,
+        help="추론 모델의 사고 분량. gpt-oss 는 low, qwen 은 none",
+    )
     parser.add_argument("--fixtures", type=Path, default=None, help="OcrPage JSON 디렉터리")
     parser.add_argument("--count", type=int, default=8, help="합성 대화 수")
     parser.add_argument(
@@ -353,7 +378,9 @@ async def main() -> None:
         raise SystemExit("평가할 대화가 없습니다.")
     print(f"대화 {len(samples)}건 준비 완료\n")
 
-    provider = build_provider(args.provider, args.model, args.key, args.base_url)
+    provider = build_provider(
+        args.provider, args.model, args.key, args.base_url, args.reasoning_effort
+    )
     report = await evaluate(provider, args.model, samples)
 
     repeats: list[list[int]] | None = None

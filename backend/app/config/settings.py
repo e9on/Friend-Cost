@@ -75,6 +75,16 @@ class Settings(BaseSettings):
     # OpenAI 호환 후보의 주소를 직접 지정할 때만 쓴다. 알려진 곳은 자동으로 채운다
     llm_base_url: str | None = None
 
+    # 추론 모델의 사고 분량을 묶는다. 비우면 필드를 보내지 않는다.
+    #
+    # 값을 목록으로 못 박지 않는 이유는 **계열마다 허용값이 다르기 때문이다.**
+    # gpt-oss 는 low/medium/high 를, qwen 은 none/default 를 받는다. 목록을
+    # 박아두면 새 모델이 나올 때마다 코드를 고쳐야 한다.
+    #
+    # 비워두면 추론이 출력 예산을 다 먹고 본문을 못 내놓아 400 이 난다.
+    # 실측에서 Groq 후보 네 개가 모두 이 이유로 실패했다.
+    llm_reasoning_effort: str | None = None
+
     # anthropic Provider 전용.
     # 구조화된 추출 작업이라 낮은 추론 강도로 충분하다. 비용 목표와도 맞는다.
     llm_effort: Literal["low", "medium", "high", "xhigh", "max"] = "low"

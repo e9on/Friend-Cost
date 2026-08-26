@@ -37,15 +37,43 @@ from samples import concordance  # noqa: E402
 
 # Groq 무료 티어에서 지금 쓸 수 있는 텍스트 모델. 목록은 자주 바뀌므로
 # console.groq.com/docs/models 에서 확인하고 고친다
+# 문서 페이지와 계정에서 실제로 보이는 목록이 다르다. llama-3.3-70b-versatile
+# 은 문서에 production 으로 남아 있지만 /v1/models 에 없었다. 돌리기 전에
+# GET /openai/v1/models 로 확인한다
 DEFAULT_MODELS = (
     "openai/gpt-oss-120b",
     "openai/gpt-oss-20b",
-    "llama-3.3-70b-versatile",
+    "qwen/qwen3.8-27b",
     "qwen/qwen3.6-27b",
 )
 
-# 무료 티어는 분당 요청 수 제한이 있다. 모델을 갈아탈 때 잠깐 쉰다
+# 무료 티어의 실제 병목은 요청 수가 아니라 **분당 토큰(TPM)** 이다.
+# 실측(x-ratelimit-limit-tokens): 8,000 TPM, 요청은 하루 1,000건.
+# 대화 한 건이 분석 1,500 + 리포트 1,100 토큰쯤 쓰므로 분당 세 건이 상한이다.
+#
+# 이걸 무시하고 던지면 429 가 쏟아지고, 그러면 성공률이 모델 품질이 아니라
+# 우리 요청 속도를 재게 된다. 그 숫자로 모델을 고르면 안 된다
+TOKENS_PER_MINUTE = 8_000
+TOKENS_PER_CONVERSATION = 2_600
+DELAY_SECONDS = 60 * TOKENS_PER_CONVERSATION / TOKENS_PER_MINUTE
+
+# 모델을 갈아탈 때는 한도가 따로 잡히므로 짧게만 쉰다
 COOLDOWN_SECONDS = 5
+
+# 추론 모델은 사고 분량을 묶지 않으면 출력 예산을 다 먹고 본문을 못 내놓는다.
+# 실측에서 gpt-oss 는 medium, qwen3.6 은 default 로 두면 400 이 났다.
+# **허용값이 계열마다 다르다.** gpt-oss: low/medium/high, qwen: none/default
+REASONING_EFFORT: dict[str, str] = {
+    "openai/gpt-oss": "low",
+    "qwen/": "none",
+}
+
+
+def effort_for(model: str) -> str | None:
+    for prefix, value in REASONING_EFFORT.items():
+        if model.startswith(prefix):
+            return value
+    return None
 
 
 @dataclass
@@ -138,8 +166,17 @@ async def main() -> None:
     parser.add_argument("--provider", default="groq")
     parser.add_argument("--key", required=True)
     parser.add_argument("--base-url", default=None)
+    parser.add_argument(
+        "--reasoning-effort", default=None, help="비우면 모델별 기본값을 쓴다"
+    )
     parser.add_argument("--models", nargs="+", default=list(DEFAULT_MODELS))
     parser.add_argument("--seeds", type=int, default=1, help="프로필당 대화 수")
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=DELAY_SECONDS,
+        help="대화 사이 간격(초). 분당 토큰 한도에 맞춘 값이 기본이다",
+    )
     args = parser.parse_args()
 
     samples = load_profiles(args.seeds)
@@ -150,8 +187,12 @@ async def main() -> None:
     for index, model in enumerate(args.models):
         print(f"[{index + 1}/{len(args.models)}] {model}")
         try:
-            provider = build_provider(args.provider, model, args.key, args.base_url)
-            report = await evaluate(provider, model, samples)
+            effort = args.reasoning_effort or effort_for(model)
+            print(f"  reasoning_effort={effort or '보내지 않음'}")
+            provider = build_provider(
+                args.provider, model, args.key, args.base_url, effort
+            )
+            report = await evaluate(provider, model, samples, delay=args.delay)
             rows.append(summarize(model, report))
         except Exception as exc:  # 한 모델이 죽어도 나머지는 재야 한다
             print(f"  건너뜀: {type(exc).__name__} {exc}")

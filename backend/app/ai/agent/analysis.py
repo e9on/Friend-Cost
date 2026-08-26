@@ -13,7 +13,9 @@ from app.domain.model.analysis import RelationshipAnalysisData
 from app.domain.model.conversation import ConversationData
 from app.domain.value_object.enums import Speaker
 
-MAX_OUTPUT_TOKENS = 800
+# 추론 모델은 reasoning 에 토큰을 먼저 쓴다. 800 으로 두면 gpt-oss 가 추론만
+# 하다 본문을 못 내놓고 400 이 났다. 실측 최대 486 토큰에 여유를 얹었다
+MAX_OUTPUT_TOKENS = 1500
 
 
 def render_conversation(convo: ConversationData) -> str:

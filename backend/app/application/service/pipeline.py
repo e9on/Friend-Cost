@@ -59,6 +59,7 @@ def _build_llm_provider(settings: Settings):
         api_key=settings.llm_api_key,
         base_url=settings.llm_base_url,
         timeout_seconds=settings.llm_timeout_seconds,
+        reasoning_effort=settings.llm_reasoning_effort,
     )
 
 
