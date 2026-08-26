@@ -59,12 +59,15 @@ USD_TO_KRW = 1400
 class Sample:
     label: str
     conversation: ConversationData
+    rank: int | None = None  # 기대 친밀도 순위. 프로필 대화에만 있다
+    note: str = ""
 
 
 @dataclass
 class Outcome:
     label: str
     ok: bool
+    rank: int | None = None
     first_try: bool = False
     seconds: float = 0.0
     input_tokens: int = 0
@@ -132,6 +135,21 @@ def load_fixtures(directory: Path) -> list[Sample]:
     return samples
 
 
+def load_profiles(seeds: int) -> list[Sample]:
+    """관계 스펙트럼 대화를 만든다. 기대 순위가 함께 붙는다."""
+    from samples import build_all
+
+    return [
+        Sample(
+            label=f"{profile.label}" + (f"#{index % seeds}" if seeds > 1 else ""),
+            conversation=convo,
+            rank=profile.rank,
+            note=profile.note,
+        )
+        for index, (profile, convo) in enumerate(build_all(seeds))
+    ]
+
+
 async def synthesize(count: int) -> list[Sample]:
     """합성 대화를 만든다. 파이프라인 점검용이며 품질 평가용이 아니다."""
     engine = StubOcrEngine()
@@ -177,6 +195,7 @@ async def run_one(provider, sample: Sample) -> Outcome:
     except AppError as exc:
         return Outcome(
             label=sample.label,
+            rank=sample.rank,
             ok=False,
             seconds=time.perf_counter() - started,
             error=exc.code.value,
@@ -184,6 +203,7 @@ async def run_one(provider, sample: Sample) -> Outcome:
 
     return Outcome(
         label=sample.label,
+        rank=sample.rank,
         ok=True,
         first_try=True,
         seconds=time.perf_counter() - started,
@@ -202,6 +222,51 @@ async def evaluate(provider, model: str, samples: Sequence[Sample]) -> Report:
         report.outcomes.append(outcome)
         print(" 성공" if outcome.ok else f" 실패({outcome.error})")
     return report
+
+
+def print_discrimination(report: Report) -> None:
+    """기대 순위를 맞혔는지 본다. 분산보다 이쪽이 중요하다.
+
+    분산은 값이 널뛰기만 해도 커진다. 절친과 일방적 관계를 실제로 **구분**
+    하는지 보려면 순서가 맞는지를 봐야 한다.
+    """
+    from samples import concordance
+
+    graded = [o for o in report.succeeded if o.rank is not None]
+    if not graded:
+        return
+
+    # 같은 프로필을 여러 씨앗으로 돌렸으면 평균을 낸다
+    by_rank: dict[int, list[Outcome]] = {}
+    for outcome in graded:
+        by_rank.setdefault(outcome.rank, []).append(outcome)
+
+    print("\n  -- 프로필별 결과 (위가 더 친하다고 기대한 관계) --")
+    print(f"  {'관계':<14} {'친밀도':>7} {'손절위험':>9} {'친구비':>10}")
+    ranked: list[tuple[int, float]] = []
+    for rank in sorted(by_rank):
+        group = by_rank[rank]
+        label = group[0].label.split("#")[0]
+        intimacy = statistics.mean(o.intimacy for o in group if o.intimacy is not None)
+        risk = statistics.mean(o.breakup_risk for o in group if o.breakup_risk is not None)
+        fee = statistics.mean(o.friend_fee for o in group if o.friend_fee is not None)
+        print(f"  {label:<14} {intimacy:>7.0f} {risk:>9.0f} {fee:>10,.0f}")
+        ranked.append((rank, intimacy))
+
+    agree, total = concordance(ranked)
+    if total == 0:
+        print("\n  순위 일치도     잴 수 없음 (모든 관계에 같은 값을 냈습니다)")
+        print("                  이 모델은 관계를 판단하지 않고 있습니다.")
+        return
+
+    rate = agree / total
+    print(f"\n  순위 일치도     {agree}/{total} 쌍 ({rate:.0%})")
+    if rate >= 0.85:
+        print("                  기대한 순서를 지킵니다. 채택 후보입니다.")
+    elif rate >= 0.65:
+        print("                  대체로 맞지만 뒤집히는 쌍이 있습니다. 다른 후보와 비교하세요.")
+    else:
+        print("                  순서를 못 맞힙니다. 이 모델은 쓸 수 없습니다.")
 
 
 def print_report(report: Report, repeats: list[list[int]] | None) -> None:
@@ -241,6 +306,8 @@ def print_report(report: Report, repeats: list[list[int]] | None) -> None:
         print("\n  경고: 친밀도가 거의 변하지 않습니다.")
         print("        어떤 대화를 넣어도 비슷한 값이 나온다면 관계를 읽지 못하는 것입니다.")
 
+    print_discrimination(report)
+
     if repeats:
         deviations = [statistics.pstdev(run) for run in repeats if len(run) >= 2]
         if deviations:
@@ -260,14 +327,26 @@ async def main() -> None:
     parser.add_argument("--base-url", default=None)
     parser.add_argument("--fixtures", type=Path, default=None, help="OcrPage JSON 디렉터리")
     parser.add_argument("--count", type=int, default=8, help="합성 대화 수")
+    parser.add_argument(
+        "--profiles",
+        action="store_true",
+        help="관계 스펙트럼 대화로 평가한다. 모델 선정은 이걸로 한다",
+    )
+    parser.add_argument("--seeds", type=int, default=1, help="프로필당 대화 수")
     parser.add_argument("--repeat", type=int, default=0, help="재현성 확인 반복 횟수")
     args = parser.parse_args()
 
     if args.fixtures:
         print(f"픽스처를 읽는 중: {args.fixtures}")
         samples = load_fixtures(args.fixtures)
+    elif args.profiles:
+        print("관계 스펙트럼 대화를 만드는 중")
+        samples = load_profiles(args.seeds)
+        for sample in samples[: len(samples) // max(1, args.seeds)]:
+            print(f"  {sample.rank}. {sample.label} — {sample.note}")
     else:
-        print("합성 대화를 만드는 중 (품질 평가용이 아닙니다)")
+        print("합성 대화를 만드는 중 (파이프라인 점검용입니다)")
+        print("  모델을 고르려면 --profiles 를 쓰세요. 이 대화들은 톤이 다 같습니다.")
         samples = await synthesize(args.count)
 
     if not samples:
