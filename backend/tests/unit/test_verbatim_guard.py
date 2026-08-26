@@ -177,3 +177,41 @@ class _NullJob:
 
     def advance(self, stage) -> None:
         pass
+
+
+class TestShortQuoteLeak:
+    """짧게 따온 인용도 잡는다.
+
+    창을 6자로 두었을 때 실제로 새어 나간 문장이다. 전 구간 실측에서
+    리포트 본문에 이렇게 실렸다.
+
+        상대방이 늦을 것 같다고 사과할 때 '조심히 와'라는 배려의 말을…
+
+    `조심히와` 는 네 글자라 6자 창에 걸리지 않았다. **모델은 문장을 통째로
+    옮기지 않고 이렇게 짧게 따온다.** 창을 4자로 내려 잡는다.
+    """
+
+    def test_네_글자_인용을_잡는다(self):
+        convo = conversation("그래 조심히 와", "응 고마워")
+        moment = "상대방이 사과할 때 '조심히 와'라는 배려의 말을 했다"
+
+        result = strip_verbatim(analysis(moment), convo)
+
+        assert result.notable_moments == ()
+
+    def test_같은_길이의_정상_서술은_남긴다(self):
+        convo = conversation("그래 조심히 와", "응 고마워")
+        summary = "상대가 늦는다고 할 때 배려하는 말을 건넸다"
+
+        result = strip_verbatim(analysis(summary), convo)
+
+        assert result.notable_moments == (summary,)
+
+    def test_여러_요약_중_인용만_버린다(self):
+        convo = conversation("완전 좋지 그때 보자", "응 그때 봐")
+        result = strip_verbatim(
+            analysis("상대가 '완전 좋지'라고 답했다", "제안에 긍정적으로 반응했다"),
+            convo,
+        )
+
+        assert result.notable_moments == ("제안에 긍정적으로 반응했다",)
