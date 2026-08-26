@@ -42,9 +42,32 @@ FEE_CALIBRATION_STDDEV: Final = 0.099
 # 그래서 원래 비율을 일부 섞는다. 가운데는 여전히 넓어지고, 양 끝에서는
 # 원래 비율이 순서를 지켜준다.
 FEE_CURVE_STRENGTH: Final = 0.7
-FEE_MIN: Final = 1_000
+FEE_MIN: Final = -100_000
 FEE_MAX: Final = 100_000
 FEE_UNIT: Final = 1_000  # 반올림 단위
+
+# --- 기여 격차 (관계-점수-계산-규칙 10장) ---
+#
+# 친구비는 관계의 품질이 아니라 **누가 더 기여했는가**를 잰다. 양수면 상대가
+# 나에게, 음수면 내가 상대에게 내야 한다.
+#
+# 품질을 재던 시절에는 친구비가 친밀도와 거의 같은 정보를 보여줬다. 실측에서
+# 친밀도 87·69·41·40·38·34 에 친구비 93,000·88,000·29,000·34,000·17,000·22,000
+# 이 대응했다. 지표 하나를 두 번 보여준 셈이다.
+W_GAP_EFFORT: Final = 0.30
+W_GAP_AFFECTION: Final = 0.20
+W_GAP_MESSAGES: Final = 0.20
+W_GAP_INITIATION: Final = 0.20
+W_GAP_REPLY: Final = 0.10
+
+# 답장 속도 격차의 로그 밑. 8배 차이가 나면 1.0에 닿는다
+REPLY_GAP_BASE: Final = 8.0
+
+# |rawGap| 의 표준편차. tools/calibrate_fee.py 로 측정해서 정한다.
+# 손으로 정하면 실측 분포와 어긋나 상한에 닿지 못하거나 작은 격차가
+# 금액을 다 먹는다.
+# 2026-08-26 측정값. 있을 법한 관계 3,000건의 |rawGap| 표준편차다
+FEE_GAP_STDDEV: Final = 0.125
 
 # --- 표본 요건 ---
 MIN_MESSAGES: Final = 15  # 미만이면 분석 거절
@@ -81,7 +104,14 @@ def _assert_weights_sum_to_one() -> None:
         + W_RISK_PROMISE
         + W_RISK_MONEY
     )
-    for name, total in (("친밀도", intimacy), ("손절 위험도", risk)):
+    gap = (
+        W_GAP_EFFORT
+        + W_GAP_AFFECTION
+        + W_GAP_MESSAGES
+        + W_GAP_INITIATION
+        + W_GAP_REPLY
+    )
+    for name, total in (("친밀도", intimacy), ("손절 위험도", risk), ("기여 격차", gap)):
         if abs(total - 1.0) > 1e-9:
             raise ValueError(f"{name} 가중치 합이 1.00이 아니다: {total}")
 

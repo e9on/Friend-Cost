@@ -9,10 +9,16 @@ from app.algorithm.calculator import calculate_scores
 from app.algorithm.calculator.behavior import (
     contact_balance,
     first_contact_ratio,
+    peer_reply_chances,
     reply_seconds,
     split_sessions,
 )
-from app.algorithm.calculator.relationship import breakup_risk, friend_fee, intimacy
+from app.algorithm.calculator.relationship import (
+    breakup_risk,
+    contribution_gap,
+    friend_fee,
+    intimacy,
+)
 from app.common.errors import AppError, ErrorCode
 from app.domain.value_object.enums import Confidence, Speaker
 from tests.builders import BASE_TS, DAY, MINUTE, alternating, analysis, conversation, msg
@@ -41,14 +47,28 @@ class TestCalculateScores:
         balance = contact_balance(convo)
         replies = reply_seconds(convo)
         expected_intimacy = intimacy(data, balance)
-        expected_risk = breakup_risk(data, balance, replies.peer, first_contact_ratio(convo))
+        expected_risk = breakup_risk(
+            data,
+            balance,
+            replies.peer,
+            first_contact_ratio(convo),
+            peer_reply_chances(convo),
+        )
 
         assert scores.contact_balance == balance
         assert scores.avg_reply_seconds == replies
         assert scores.first_contact_ratio == first_contact_ratio(convo)
         assert scores.intimacy == expected_intimacy
         assert scores.breakup_risk == expected_risk
-        assert scores.friend_fee == friend_fee(expected_intimacy, balance, expected_risk)
+        assert scores.friend_fee == friend_fee(
+            contribution_gap(
+                analysis=data,
+                my_count=len(convo.by_speaker(Speaker.ME)),
+                peer_count=len(convo.by_speaker(Speaker.PEER)),
+                first_contact_ratio=first_contact_ratio(convo),
+                replies=replies,
+            )
+        )
 
     def test_high_confidence_for_a_long_well_timed_conversation(self):
         scores = calculate_scores(spec_like_conversation(), analysis())

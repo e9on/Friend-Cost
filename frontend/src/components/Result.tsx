@@ -13,9 +13,9 @@ import {
   CONFIDENCE_NOTE,
   formatCountdown,
   formatDuration,
+  formatFee,
   formatPercent,
   formatSpan,
-  formatWon,
 } from '../lib/format'
 import { drawResultCard, saveCard } from '../lib/shareImage'
 
@@ -66,11 +66,15 @@ export function Result({ result, onRestart }: Props) {
     { label: '상대 답장', value: formatDuration(scores.avgReplySeconds.peer), unit: '' },
   ]
 
+  // 부호는 문구가 말하고 금액은 절댓값으로 보여준다.
+  // "-36,000원"만 띄우면 '나쁜 관계'로 읽힌다
+  const fee = formatFee(scores.friendFee)
+
   return (
     <section className="panel">
-      <div className="fee">
-        <span className="fee-label">이 친구의 친구비</span>
-        <strong className="fee-value">{formatWon(scores.friendFee)}</strong>
+      <div className={`fee fee-${fee.direction}`}>
+        <span className="fee-label">{fee.label}</span>
+        <strong className="fee-value">{fee.amount}</strong>
       </div>
 
       <h2 className="headline">{report.headline}</h2>

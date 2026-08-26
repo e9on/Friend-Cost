@@ -13,6 +13,7 @@ import {
   formatDuration,
   formatPercent,
   formatSpan,
+  formatFee,
   formatWon,
 } from './format'
 
@@ -94,5 +95,42 @@ describe('신뢰도 안내', () => {
     expect(CONFIDENCE_NOTE.high).toBeNull()
     expect(CONFIDENCE_NOTE.medium).not.toBeNull()
     expect(CONFIDENCE_NOTE.low).not.toBeNull()
+  })
+})
+
+describe('formatFee', () => {
+  /**
+   * 친구비는 정산액이다. 부호가 뜻을 갖는다.
+   *
+   * 화면에 "-36,000원"만 띄우면 읽히지 않는다. 마이너스가 '나쁜 관계'로
+   * 오해되기 쉽다. 방향을 문구로 풀고 금액은 절댓값으로 보여준다.
+   */
+  it('양수면 상대가 나에게 낸다', () => {
+    const fee = formatFee(34000)
+
+    expect(fee.direction).toBe('receive')
+    expect(fee.amount).toBe('34,000원')
+    expect(fee.label).toContain('나에게')
+  })
+
+  it('음수면 내가 상대에게 낸다', () => {
+    const fee = formatFee(-36000)
+
+    expect(fee.direction).toBe('pay')
+    expect(fee.amount).toBe('36,000원')
+    expect(fee.label).toContain('내가')
+  })
+
+  it('음수여도 금액에 마이너스를 붙이지 않는다', () => {
+    // 방향은 문구가 말한다. 숫자에까지 붙이면 두 번 말하는 셈이고
+    // '마이너스 = 나쁨'으로 읽힌다
+    expect(formatFee(-36000).amount).not.toContain('-')
+  })
+
+  it('0이면 정산할 것이 없다', () => {
+    const fee = formatFee(0)
+
+    expect(fee.direction).toBe('even')
+    expect(fee.amount).toBe('0원')
   })
 })

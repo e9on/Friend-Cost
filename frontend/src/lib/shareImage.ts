@@ -11,7 +11,11 @@
  */
 
 import type { AnalysisResult } from '../api/types'
-import { formatDuration, formatPercent, formatWon } from './format'
+import {
+  formatDuration,
+  formatFee,
+  formatPercent,
+} from './format'
 
 const WIDTH = 1080
 const PADDING = 72
@@ -118,10 +122,19 @@ export function drawResultCard(
   ctx.fillText('친구비 측정기', PADDING, y)
   y += 78
 
-  // 친구비를 가장 크게 보여준다. 서비스의 대표 지표다
+  // 친구비를 가장 크게 보여준다. 서비스의 대표 지표다.
+  //
+  // 방향 문구를 함께 새긴다. 금액만 있으면 누가 누구에게 내는지 알 수 없다.
+  // 화면에서는 절댓값만 보여주므로 이미지에도 부호를 붙이지 않는다
+  const fee = formatFee(result.scores.friendFee)
+  ctx.fillStyle = MUTED
+  ctx.font = font(34, 500)
+  ctx.fillText(fee.label, PADDING, y)
+  y += 46
+
   ctx.fillStyle = ACCENT
   ctx.font = font(122, 800)
-  ctx.fillText(formatWon(result.scores.friendFee), PADDING, y + 90)
+  ctx.fillText(fee.amount, PADDING, y + 90)
   y += 190
 
   ctx.fillStyle = TEXT

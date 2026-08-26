@@ -12,6 +12,7 @@ from app.algorithm.calculator.behavior import (
     split_sessions,
 )
 from app.algorithm.calculator.relationship import (
+    contribution_gap,
     breakup_risk,
     confidence_of,
     friend_fee,
@@ -22,6 +23,7 @@ from app.common.errors import AppError, ErrorCode
 from app.domain.model.analysis import RelationshipAnalysisData
 from app.domain.model.conversation import ConversationData
 from app.domain.model.score import RelationshipScoreData
+from app.domain.value_object.enums import Speaker
 
 __all__ = ["calculate_scores"]
 
@@ -48,8 +50,18 @@ def calculate_scores(
     intimacy_score = intimacy(analysis, balance)
     risk_score = breakup_risk(analysis, balance, replies.peer, initiation, chances)
 
+    # 친구비는 품질이 아니라 **기여 격차**를 잰다. 친밀도와 같은 정보를
+    # 두 번 보여주지 않기 위해서다. 관계-점수-계산-규칙 10장
+    gap = contribution_gap(
+        analysis=analysis,
+        my_count=len(convo.by_speaker(Speaker.ME)),
+        peer_count=len(convo.by_speaker(Speaker.PEER)),
+        first_contact_ratio=initiation,
+        replies=replies,
+    )
+
     return RelationshipScoreData(
-        friend_fee=friend_fee(intimacy_score, balance, risk_score),
+        friend_fee=friend_fee(gap),
         intimacy=intimacy_score,
         breakup_risk=risk_score,
         first_contact_ratio=initiation,

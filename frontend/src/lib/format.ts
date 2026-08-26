@@ -6,6 +6,41 @@ export function formatWon(value: number): string {
   return `${value.toLocaleString('ko-KR')}원`
 }
 
+export type FeeDirection = 'receive' | 'pay' | 'even'
+
+export interface FormattedFee {
+  direction: FeeDirection
+  label: string
+  amount: string
+}
+
+/**
+ * 친구비는 정산액이다. 부호가 뜻을 갖는다.
+ *
+ * 화면에 "-36,000원"만 띄우면 읽히지 않는다. 마이너스가 '나쁜 관계'로
+ * 오해되기 쉬운데, 실제 뜻은 "상대가 나보다 더 기여했다"이다.
+ *
+ * 그래서 **방향은 문구로, 금액은 절댓값으로** 나눠 보여준다. 숫자에까지
+ * 부호를 붙이면 같은 말을 두 번 하는 셈이다.
+ */
+export function formatFee(value: number): FormattedFee {
+  if (value > 0) {
+    return {
+      direction: 'receive',
+      label: '이 친구가 나에게 낼 친구비',
+      amount: formatWon(value),
+    }
+  }
+  if (value < 0) {
+    return {
+      direction: 'pay',
+      label: '내가 이 친구에게 낼 친구비',
+      amount: formatWon(-value),
+    }
+  }
+  return { direction: 'even', label: '서로 비긴 사이', amount: formatWon(0) }
+}
+
 export function formatPercent(ratio: number): string {
   return `${Math.round(ratio * 100)}%`
 }

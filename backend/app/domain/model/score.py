@@ -8,7 +8,7 @@ from pydantic.alias_generators import to_camel
 
 from app.domain.value_object.enums import Confidence
 
-FEE_MIN = 1_000
+FEE_MIN = -100_000
 FEE_MAX = 100_000
 
 

@@ -9,6 +9,13 @@
 import math
 
 from app.algorithm.rule.constants import (
+    REPLY_GAP_BASE,
+    FEE_GAP_STDDEV,
+    W_GAP_AFFECTION,
+    W_GAP_EFFORT,
+    W_GAP_INITIATION,
+    W_GAP_MESSAGES,
+    W_GAP_REPLY,
     FEE_BASE,
     FEE_CALIBRATION_MEAN,
     FEE_CALIBRATION_STDDEV,
@@ -141,50 +148,86 @@ def breakup_risk(
     )
 
 
-def quality_ratio(
-    intimacy_score: int, contact_balance: int, breakup_risk_score: int
-) -> float:
-    """관계의 원시 품질 비율. 0.0 ~ 1.0.
-
-    | 항 | 역할 | 범위 |
-    | --- | --- | --- |
-    | 친밀도 | 관계의 기본 가치 | 0.00 ~ 1.00 |
-    | 균형 보정 | 한쪽만 노력해도 절반은 인정 | 0.50 ~ 1.00 |
-    | 위험 할인 | 최대 50%까지만 깎는다 | 0.50 ~ 1.00 |
-
-    위험도 할인을 절반까지만 적용하는 이유는, 관계가 아무리 나빠도 친구비가
-    0원이 되면 결과가 모욕적으로 읽히기 때문이다.
-    """
-    return (
-        (intimacy_score / 100)
-        * (0.5 + 0.5 * contact_balance / 100)
-        * (1 - breakup_risk_score / 200)
-    )
-
-
 def _normal_cdf(value: float, mean: float, stddev: float) -> float:
-    """정규분포의 누적분포함수. 0.0 ~ 1.0."""
+    """정규분포의 누적분포함수.
+
+    `math.erf` 로 구한다. scipy 를 끌어오지 않으려는 것이다.
+    """
+    if stddev <= 0:
+        return 0.0 if value < mean else 1.0
     return 0.5 * (1 + math.erf((value - mean) / (stddev * math.sqrt(2))))
 
 
-def friend_fee(intimacy_score: int, contact_balance: int, breakup_risk_score: int) -> int:
-    """친구비. 다른 지표가 확정된 뒤에 계산되는 파생 지표다.
+def _reply_speed_gap(replies) -> float:
+    """내가 더 빨리 답할수록 크다. -1.0 ~ +1.0.
 
-    원시 품질 비율을 그대로 금액으로 바꾸지 않고 **분위수로 옮긴다.**
+    한쪽이라도 표본이 없으면 0이다. **모르는 것을 격차로 치지 않는다.**
+    8장의 `reply_delay_score` 와 달리 "답한 적 없음"도 0으로 둔다. 격차는
+    양쪽을 견줘야 나오는 값이고, 한쪽이 비면 견줄 수가 없다.
 
-    세 항의 곱은 값이 가운데로 몰린다. 그대로 쓰면 중간 50%가
-    33,000~46,000원에 들어와서, 서로 다른 친구를 재도 비슷한 숫자만 나온다.
-    친구 셋을 재서 38,000·41,000·44,000이 나오면 아무것도 알려주지 못한 것이다.
-
-    분위수로 옮기면 친구비가 "우리가 본 관계 분포에서 상위 몇 %"라는 뜻을
-    갖는다. 순서는 그대로 보존된다(누적분포함수는 단조 증가한다).
+    로그를 쓰는 이유는 6장과 같다. 5분과 30분의 차이가 3시간과 4시간의
+    차이보다 관계적으로 크다.
     """
-    ratio = quality_ratio(intimacy_score, contact_balance, breakup_risk_score)
-    percentile = _normal_cdf(ratio, FEE_CALIBRATION_MEAN, FEE_CALIBRATION_STDDEV)
-    # 순수 분위수만 쓰면 양 끝이 뭉개진다. 원래 비율을 섞어 순서를 지킨다
-    position = FEE_CURVE_STRENGTH * percentile + (1 - FEE_CURVE_STRENGTH) * ratio
-    raw = FEE_MIN + position * (FEE_MAX - FEE_MIN)
-    return int(clamp(round_to_unit(raw, FEE_UNIT), FEE_MIN, FEE_MAX))
+    if replies.me is None or replies.peer is None:
+        return 0.0
+    ratio = math.log(max(replies.peer, 1) / max(replies.me, 1)) / math.log(
+        REPLY_GAP_BASE
+    )
+    return clamp(ratio, -1.0, 1.0)
+
+
+def contribution_gap(
+    analysis: RelationshipAnalysisData,
+    my_count: int,
+    peer_count: int,
+    first_contact_ratio: float,
+    replies,
+) -> float:
+    """누가 더 기여했는가. -1.0 ~ +1.0. 양수면 내가 더 기여했다.
+
+    `관계-점수-계산-규칙.md` 10.2.
+    """
+    total = my_count + peer_count
+    message_gap = (my_count - peer_count) / total if total else 0.0
+
+    return clamp(
+        W_GAP_EFFORT
+        * (analysis.effort_level.me - analysis.effort_level.peer)
+        / 100
+        + W_GAP_AFFECTION
+        * (analysis.affection_signals.me - analysis.affection_signals.peer)
+        / 100
+        + W_GAP_MESSAGES * message_gap
+        + W_GAP_INITIATION * (first_contact_ratio - 0.5) * 2
+        + W_GAP_REPLY * _reply_speed_gap(replies),
+        -1.0,
+        1.0,
+    )
+
+
+def friend_fee(raw_gap: float) -> int:
+    """기여 격차를 정산액으로 옮긴다.
+
+    양수면 상대가 나에게, 음수면 내가 상대에게 내야 한다. **관계가 나쁘다는
+    뜻이 아니다.** 음수는 "내가 더 받았다"는 뜻이다.
+
+    부호와 크기를 나눠 다룬다. 크기만 보정하고 부호를 그대로 붙이므로,
+    보정이 방향을 뒤집는 일은 구조적으로 불가능하다.
+
+    `관계-점수-계산-규칙.md` 10.3.
+    """
+    magnitude = min(abs(raw_gap), 1.0)
+
+    # 반정규분포의 CDF. 원시 격차가 실측에서 ±0.2 에 그쳐 그대로 쓰면
+    # 상한에 영원히 닿지 못한다. 8장에서 한 번 겪은 결함이다
+    percentile = 2 * _normal_cdf(magnitude, 0.0, FEE_GAP_STDDEV) - 1
+    position = (
+        FEE_CURVE_STRENGTH * percentile + (1 - FEE_CURVE_STRENGTH) * magnitude
+    )
+
+    amount = clamp(round_to_unit(FEE_MAX * position, FEE_UNIT), 0, FEE_MAX)
+    return int(-amount if raw_gap < 0 else amount)
+
 
 
 def confidence_of(meta: ConversationMeta, session_count: int) -> Confidence:

@@ -114,24 +114,30 @@ class TestBreakupRisk:
 
 
 class TestFriendFee:
-    @pytest.mark.parametrize(
-        "intimacy_score, balance, risk, expected",
-        [
-            (100, 100, 0, 100_000),
-            (64, 74, 38, 63_000),
-            (60, 60, 30, 50_000),
-            (25, 40, 65, 5_000),
-        ],
-    )
-    def test_matches_spec_table(self, intimacy_score, balance, risk, expected):
-        assert friend_fee(intimacy_score, balance, risk) == expected
+    """친구비는 **정산액이다.** 품질이 아니라 기여 격차를 잰다.
 
-    def test_never_falls_below_floor(self):
-        # 최악의 관계여도 0원이 되면 결과가 모욕적으로 읽힌다
-        assert friend_fee(0, 0, 100) == 1_000
+    v1.5 이전에는 `intimacy`·`contactBalance`·`breakupRisk` 의 함수라
+    친밀도와 거의 같은 정보를 보여줬다. 지표 하나를 두 번 보여준 셈이다.
+    `관계-점수-계산-규칙.md` 10.1.
+    """
+
+    def test_기여가_같으면_0원이다(self):
+        # 서로 빚진 것이 없다
+        assert friend_fee(0.0) == 0
+
+    def test_내가_더_기여하면_상대가_낸다(self):
+        assert friend_fee(0.4) > 0
+
+    def test_상대가_더_기여하면_내가_낸다(self):
+        assert friend_fee(-0.4) < 0
+
+    def test_양_끝에_도달한다(self):
+        # 닿지 못하는 상한을 만든 적이 있다. 같은 실수를 막는다
+        assert friend_fee(1.0) == 100_000
+        assert friend_fee(-1.0) == -100_000
 
     def test_rounds_to_thousand_won(self):
-        assert friend_fee(64, 74, 38) % 1_000 == 0
+        assert friend_fee(0.37) % 1_000 == 0
 
 
 class TestConfidence:

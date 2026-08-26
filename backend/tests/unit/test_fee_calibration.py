@@ -1,11 +1,13 @@
 """친구비가 좁은 구간에 뭉치지 않는가.
 
-산식의 원시 비율은 세 항의 곱이라 값이 가운데로 몰린다. 시뮬레이션에서
-중간 50%가 33,000~46,000원에 들어왔다. 내 친구 셋을 재서 38,000·41,000·
-44,000이 나오면 서비스는 아무것도 알려주지 못한 것이다.
+**기여 격차는 그대로 두면 0 근처에 몰린다.** 실측에서 원시 격차가
+-0.16 ~ +0.20 에 그쳤다. 그대로 금액으로 바꾸면 ±2만 원 안에 갇히고,
+±100,000원이라는 상한에 영원히 닿지 못한다.
 
-그래서 원시 비율을 **분위수로 바꿔서** 보여준다. 친구비 80,000원은
-"우리가 본 관계 분포에서 상위 20% 언저리"라는 뜻이 된다.
+같은 결함을 답장 지연 점수에서 한 번 겪었다. 상한이 24시간이던 시절
+6시간을 넘는 표본이 버려져 100점이 나올 수 없었다.
+
+그래서 크기를 분위수로 바꿔 벌린다. `관계-점수-계산-규칙.md` 10.3.
 """
 
 import random
@@ -14,7 +16,7 @@ import statistics
 import pytest
 
 from app.algorithm.calculator import calculate_scores
-from app.algorithm.calculator.relationship import friend_fee, quality_ratio
+from app.algorithm.calculator.relationship import contribution_gap, friend_fee
 from app.algorithm.rule.constants import FEE_MAX, FEE_MIN
 from tests.fixtures.relationships import (
     ALL_CASES,
@@ -27,150 +29,113 @@ from tests.fixtures.relationships import (
 )
 
 
-def clamp(value: int) -> int:
-    return max(0, min(100, value))
+def simulate(count: int = 3_000) -> list[int]:
+    """있을 법한 관계를 지어내 친구비 분포를 본다.
 
-
-def random_scores(count: int, seed: int = 42):
-    """있을 법한 범위에서 관계를 무작위로 만들어 점수를 낸다."""
-    rng = random.Random(seed)
-    results = []
+    양쪽 점수를 독립적으로 흔든다. 한쪽만 흔들면 격차가 늘 한 방향이라
+    분포가 치우친다.
+    """
+    rng = random.Random(20260826)
+    fees: list[int] = []
     for _ in range(count):
-        pattern = Pattern(
-            sessions=rng.randint(5, 25),
-            turns_per_session=rng.randint(3, 8),
-            me_starts_ratio=rng.uniform(0.2, 0.9),
-            me_burst=rng.randint(1, 3),
-            peer_burst=rng.randint(1, 3),
-            my_reply_seconds=rng.randint(2 * MINUTE, 3 * HOUR),
-            peer_reply_seconds=rng.randint(2 * MINUTE, 5 * HOUR),
-            session_gap_seconds=rng.randint(1, 20) * DAY,
+        gap = contribution_gap(
+            analysis=_random_analysis(rng),
+            my_count=rng.randint(1, 60),
+            peer_count=rng.randint(1, 60),
+            first_contact_ratio=rng.random(),
+            replies=_replies(rng),
         )
-        tone = rng.randint(30, 95)
-        affection = rng.randint(15, 90)
-        effort = rng.randint(25, 95)
-        proposed = rng.randint(0, 8)
-        declined = rng.randint(0, proposed)
-        data = analysis(
-            tone=(tone, clamp(tone + rng.randint(-20, 10))),
-            affection=(affection, clamp(affection + rng.randint(-25, 10))),
-            effort=(effort, clamp(effort + rng.randint(-30, 10))),
-            conflict=rng.randint(0, 80),
-            depth=rng.randint(20, 90),
-            promises=(proposed, proposed - declined, declined),
-            money=(rng.randint(0, 2), 0, 0),
-        )
-        results.append(calculate_scores(build_conversation(pattern), data))
-    return results
+        fees.append(friend_fee(gap))
+    return sorted(fees)
 
 
-@pytest.fixture(scope="module")
-def sample():
-    return random_scores(400)
+def _random_analysis(rng: random.Random):
+    """양쪽을 독립적으로 흔든다. 한쪽만 흔들면 격차가 늘 한 방향이다."""
+    pair = lambda: (rng.randint(0, 100), rng.randint(0, 100))
+    return analysis(
+        tone=pair(),
+        affection=pair(),
+        effort=pair(),
+        conflict=rng.randint(0, 100),
+        depth=rng.randint(0, 100),
+    )
+
+
+def _replies(rng: random.Random):
+    from app.domain.model.score import ReplySeconds
+
+    def one():
+        # 표본이 없는 경우도 섞는다. 실제로 흔하다
+        return None if rng.random() < 0.15 else rng.randint(30, 12 * HOUR)
+
+    return ReplySeconds(me=one(), peer=one())
 
 
 class TestSpread:
-    def test_the_middle_half_is_not_squeezed(self, sample):
-        """전형적인 관계들이 서로 구분되어야 한다.
+    def test_금액이_한곳에_뭉치지_않는다(self):
+        fees = simulate()
+        low, high = fees[len(fees) // 4], fees[3 * len(fees) // 4]
 
-        여기가 좁으면 대부분의 사용자가 비슷한 숫자를 받는다.
+        assert high - low >= 30_000, f"중간 50%가 {low:,}~{high:,}원에 갇혔다"
+
+    def test_양쪽_끝이_모두_쓰인다(self):
+        fees = simulate()
+
+        assert min(fees) <= -60_000, f"가장 낮은 값이 {min(fees):,}원뿐이다"
+        assert max(fees) >= 60_000, f"가장 높은 값이 {max(fees):,}원뿐이다"
+
+    def test_0원_근처가_지나치게_두껍지_않다(self):
+        # 대부분이 0원이면 부호가 정보를 주지 못한다
+        fees = simulate()
+        near_zero = sum(1 for f in fees if abs(f) < 5_000)
+
+        assert near_zero / len(fees) < 0.30, f"{near_zero / len(fees):.0%}가 ±5천원 안"
+
+    def test_부호가_한쪽으로_치우치지_않는다(self):
+        fees = simulate()
+        positive = sum(1 for f in fees if f > 0)
+
+        assert 0.40 < positive / len(fees) < 0.60, f"양수 비율 {positive / len(fees):.0%}"
+
+    def test_범위를_벗어나지_않는다(self):
+        fees = simulate()
+
+        assert FEE_MIN <= min(fees) and max(fees) <= FEE_MAX
+
+
+class TestCalibrationConstant:
+    def test_문서가_말한_표준편차와_실측이_맞는다(self):
+        """`FEE_GAP_STDDEV` 는 측정해서 정한 값이다.
+
+        모델을 바꾸면 `effortLevel`·`affectionSignals` 분포가 달라져 이
+        값이 어긋난다. 그때 이 테스트가 먼저 깨진다.
         """
-        fees = sorted(s.friend_fee for s in sample)
-        low = fees[len(fees) // 4]
-        high = fees[len(fees) * 3 // 4]
+        from app.algorithm.rule.constants import FEE_GAP_STDDEV
 
-        assert high - low >= 30_000, f"중간 50%가 {low:,}~{high:,} 로 뭉쳐 있다"
+        rng = random.Random(20260826)
+        gaps = []
+        for _ in range(3_000):
+            gaps.append(
+                abs(
+                    contribution_gap(
+                        analysis=_random_analysis(rng),
+                        my_count=rng.randint(1, 60),
+                        peer_count=rng.randint(1, 60),
+                        first_contact_ratio=rng.random(),
+                        replies=_replies(rng),
+                    )
+                )
+            )
+        measured = statistics.pstdev(gaps)
 
-    def test_uses_most_of_the_available_range(self, sample):
-        fees = [s.friend_fee for s in sample]
-
-        span = max(fees) - min(fees)
-        assert span >= (FEE_MAX - FEE_MIN) * 0.7, f"실제 폭이 {span:,} 뿐이다"
-
-    def test_results_are_not_piled_on_one_value(self, sample):
-        fees = [s.friend_fee for s in sample]
-        most_common = max(fees.count(value) for value in set(fees))
-
-        assert most_common / len(fees) < 0.1, "한 값에 10% 넘게 몰려 있다"
-
-
-class TestCalibrationCurve:
-    def test_median_quality_lands_near_the_middle(self):
-        """분포의 한가운데인 관계는 친구비도 한가운데여야 한다."""
-        from app.algorithm.rule.constants import FEE_CALIBRATION_MEAN
-
-        fee = friend_fee_for_ratio(FEE_CALIBRATION_MEAN)
-
-        assert 45_000 <= fee <= 55_000
-
-    def test_is_monotone(self):
-        """더 나은 관계가 더 낮은 친구비를 받으면 안 된다."""
-        fees = [friend_fee_for_ratio(r / 100) for r in range(1, 100)]
-
-        assert fees == sorted(fees)
-
-    def test_respects_the_bounds(self):
-        assert friend_fee_for_ratio(0.0) == FEE_MIN
-        assert friend_fee_for_ratio(1.0) == FEE_MAX
-
-    def test_rounds_to_thousand_won(self):
-        for ratio in (0.2, 0.35, 0.5, 0.65, 0.8):
-            assert friend_fee_for_ratio(ratio) % 1_000 == 0
-
-
-def friend_fee_for_ratio(ratio: float) -> int:
-    """원시 비율을 그대로 넣어 친구비를 본다.
-
-    세 항의 곱이 `ratio` 가 되도록 균형도와 위험도를 최댓값으로 고정한다.
-    """
-    return friend_fee(round(ratio * 100), 100, 0)
-
-
-class TestQualityRatio:
-    def test_combines_the_three_terms(self):
-        assert quality_ratio(64, 74, 38) == pytest.approx(0.64 * 0.87 * 0.81)
-
-    def test_perfect_relationship_is_one(self):
-        assert quality_ratio(100, 100, 0) == pytest.approx(1.0)
-
-    def test_worst_relationship_is_zero(self):
-        assert quality_ratio(0, 0, 100) == pytest.approx(0.0)
-
-
-class TestOrderingSurvives:
-    """분위수로 바꿔도 관계의 순서는 그대로여야 한다."""
-
-    def test_relationship_types_keep_their_order(self):
-        fees = {
-            case.key: calculate_scores(case.conversation(), case.analysis).friend_fee
-            for case in ALL_CASES
-        }
-
-        assert (
-            fees["close"]
-            > fees["balanced"]
-            > fees["fading"]
-            > fees["one_sided"]
-            > fees["conflict"]
+        assert measured == pytest.approx(FEE_GAP_STDDEV, abs=0.08), (
+            f"실측 {measured:.3f} vs 상수 {FEE_GAP_STDDEV}"
         )
 
-    def test_still_deterministic(self):
-        first = random_scores(20, seed=7)
-        second = random_scores(20, seed=7)
 
-        assert [s.friend_fee for s in first] == [s.friend_fee for s in second]
+class TestRealPatterns:
+    @pytest.mark.parametrize("case", ALL_CASES, ids=lambda c: c.key)
+    def test_실제_같은_패턴도_범위_안이다(self, case):
+        scores = calculate_scores(build_conversation(case.pattern), case.analysis)
 
-
-class TestOtherMetricsUnchanged:
-    """친밀도와 위험도는 0~100 점수라 그대로 둔다.
-
-    친구비만 분위수로 바꾸는 이유는, 그것만 '금액'이라는 형태 때문에
-    폭이 넓어야 의미가 살기 때문이다. 점수는 100점 만점의 뜻이 이미 있다.
-    """
-
-    def test_intimacy_is_untouched(self):
-        # 관계 점수 계산 규칙 13장의 예제. 친구비만 바꿨으므로 그대로여야 한다
-        from app.algorithm.calculator.relationship import intimacy
-        from tests.builders import analysis as spec_analysis
-
-        assert intimacy(spec_analysis(), 74) == 64
+        assert FEE_MIN <= scores.friend_fee <= FEE_MAX

@@ -51,7 +51,8 @@ class TestPipelineEndToEnd:
         result = service.result(job_id)
 
         assert isinstance(result, AnalysisResult)
-        assert 1_000 <= result.scores.friend_fee <= 100_000
+        # 친구비는 정산액이라 음수가 정상이다. 관계-점수-계산-규칙 10장
+        assert -100_000 <= result.scores.friend_fee <= 100_000
         assert len(result.report.sections) >= 2
         assert result.meta.image_count == 3
 

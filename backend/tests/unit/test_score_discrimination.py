@@ -56,14 +56,30 @@ class TestSpread:
 class TestOrdering:
     """사람이 읽어서 납득할 순서로 나와야 한다."""
 
-    def test_closer_relationships_are_worth_more(self, scores):
-        assert (
-            scores["close"].friend_fee
-            > scores["balanced"].friend_fee
-            > scores["fading"].friend_fee
-            > scores["one_sided"].friend_fee
-            > scores["conflict"].friend_fee
+    def test_친구비는_친밀도_순서를_따르지_않는다(self, scores):
+        """이것이 v1.5 변경의 요점이다.
+
+        옛 규칙에서 친구비는 친밀도와 거의 단조로 대응했다. 같은 정보를 두
+        번 보여준 것이다. 지금은 **누가 더 기여했는가**를 재므로 순서가
+        달라야 한다. 순서가 다시 같아지면 지표가 도로 겹친 것이다.
+        """
+        by_intimacy = sorted(scores, key=lambda k: -scores[k].intimacy)
+        by_fee = sorted(scores, key=lambda k: -scores[k].friend_fee)
+
+        assert by_intimacy != by_fee, (
+            f"친구비 순서가 친밀도와 같다: {by_fee}"
         )
+
+    def test_한쪽만_매달리는_관계는_그쪽이_받는다(self, scores):
+        # one_sided 는 내가 일방적으로 노력하는 패턴이다.
+        # 내가 더 기여했으니 상대가 나에게 내야 한다
+        assert scores["one_sided"].friend_fee > 0
+
+    def test_모든_친구비가_범위_안이다(self, scores):
+        from app.algorithm.rule.constants import FEE_MAX, FEE_MIN
+
+        for key, value in scores.items():
+            assert FEE_MIN <= value.friend_fee <= FEE_MAX, key
 
     def test_intimacy_follows_the_same_order(self, scores):
         assert scores["close"].intimacy > scores["balanced"].intimacy
@@ -122,8 +138,17 @@ class TestFirstContactMatters:
 
         assert only_me.breakup_risk > mutual.breakup_risk
 
-    def test_always_initiating_lowers_the_fee(self):
-        assert self.score_for(1.0).friend_fee < self.score_for(0.5).friend_fee
+    def test_나만_먼저_걸면_친구비가_올라간다(self):
+        """방향이 뒤집혔다. 의도한 것이다.
+
+        옛 규칙에서는 한쪽만 거는 관계를 '나쁜 관계'로 보고 친구비를
+        낮췄다. 지금은 **내가 더 기여한 것**으로 보고 올린다. 상대가
+        나에게 낼 몫이 늘어난다는 뜻이다.
+        """
+        assert self.score_for(1.0).friend_fee > self.score_for(0.5).friend_fee
+
+    def test_상대만_먼저_걸면_친구비가_내려간다(self):
+        assert self.score_for(0.0).friend_fee < self.score_for(0.5).friend_fee
 
     def test_the_other_side_always_initiating_is_also_imbalance(self):
         """한쪽만 노력하는 관계는 방향과 무관하게 위태롭다."""
