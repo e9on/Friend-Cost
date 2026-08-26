@@ -65,6 +65,12 @@ export function useAnalysis() {
 
   /** 페이지를 떠날 때 임시 데이터 삭제를 요청한다. */
   useEffect(() => {
+    // **재마운트마다 다시 켠다.** React 는 개발 모드에서 마운트 -> 언마운트 ->
+    // 재마운트 하는데, 정리 함수가 이 값을 false 로 바꾸고 되돌리지 않으면
+    // 이후 모든 동작이 조용히 중단된다. 업로드는 성공하는데 폴링이 시작되지
+    // 않아 화면이 첫 단계에 멈춘다. 오류가 나지 않으므로 원인을 찾기 어렵다.
+    aliveRef.current = true
+
     const onUnload = () => {
       if (jobIdRef.current) requestDeletionOnUnload(jobIdRef.current)
     }

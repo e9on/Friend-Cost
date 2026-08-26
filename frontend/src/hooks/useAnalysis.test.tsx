@@ -233,3 +233,77 @@ describe('임시 데이터 정리', () => {
     expect(result.current.phase).toBe('idle')
   })
 })
+
+describe('StrictMode 이중 마운트', () => {
+  /**
+   * React 는 개발 모드에서 마운트 -> 언마운트 -> 재마운트 한다.
+   * 정리 함수가 aliveRef 를 false 로 바꾸고 되돌리지 않으면, 재마운트 뒤
+   * 모든 동작이 조용히 중단된다.
+   *
+   * 실제로 브라우저에서 업로드가 202 로 성공한 뒤 폴링 요청이 하나도 나가지
+   * 않았다. 화면은 첫 단계에 멈춰 있고 오류도 나지 않는다. 서버는 8.5초 만에
+   * 결과를 냈는데 사용자는 영영 모른다.
+   *
+   * 기존 테스트가 이것을 잡지 못한 이유는 StrictMode 없이 렌더하기 때문이다.
+   */
+  it('재마운트 뒤에도 폴링을 시작한다', async () => {
+    client.createAnalysis.mockResolvedValue({
+      jobId: 'job-1',
+      status: 'pending',
+      expiresAt: 1_700_000_000,
+      pollAfterSeconds: 0,
+    })
+    client.getStatus.mockResolvedValue({
+      jobId: 'job-1',
+      status: 'done',
+      stage: null,
+      expiresAt: 1_700_000_000,
+      pollAfterSeconds: null,
+      error: null,
+    } satisfies StatusResponse)
+    client.getResult.mockResolvedValue(RESULT)
+
+    const { result } = renderHook(() => useAnalysis(), {
+      reactStrictMode: true,
+    })
+
+    await act(async () => {
+      await result.current.start([new File(['x'], 'a.png', { type: 'image/png' })])
+    })
+
+    await waitFor(() => expect(client.getStatus).toHaveBeenCalled())
+    await waitFor(() => expect(result.current.phase).toBe('done'))
+  })
+
+  it('재마운트 뒤 실패도 화면에 전달한다', async () => {
+    client.createAnalysis.mockResolvedValue({
+      jobId: 'job-2',
+      status: 'pending',
+      expiresAt: 1_700_000_000,
+      pollAfterSeconds: 0,
+    })
+    client.getStatus.mockResolvedValue({
+      jobId: 'job-2',
+      status: 'failed',
+      stage: null,
+      expiresAt: 1_700_000_000,
+      pollAfterSeconds: null,
+      error: {
+        code: 'GROUP_CHAT_DETECTED',
+        message: '단체 대화방은 분석할 수 없습니다.',
+        retryable: false,
+      },
+    } satisfies StatusResponse)
+
+    const { result } = renderHook(() => useAnalysis(), {
+      reactStrictMode: true,
+    })
+
+    await act(async () => {
+      await result.current.start([new File(['x'], 'a.png', { type: 'image/png' })])
+    })
+
+    await waitFor(() => expect(result.current.phase).toBe('failed'))
+    expect(result.current.error?.code).toBe('GROUP_CHAT_DETECTED')
+  })
+})
