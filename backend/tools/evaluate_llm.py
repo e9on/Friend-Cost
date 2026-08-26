@@ -3,7 +3,7 @@
 `AI-모델-선정-보고서.md` 8.3의 평가 항목을 실제로 잰다.
 
     python tools/evaluate_llm.py --provider stub
-    python tools/evaluate_llm.py --provider groq --model llama-3.3-70b-versatile --key $GROQ_KEY
+    python tools/evaluate_llm.py --provider groq --model openai/gpt-oss-120b --key $GROQ_KEY
     python tools/evaluate_llm.py --provider anthropic --model claude-haiku-4-5 --key $ANTHROPIC_KEY
 
 가장 중요한 지표는 정확도가 아니라 **결과 분산**이다.
@@ -46,7 +46,10 @@ PRICES: dict[str, tuple[float, float]] = {
     "claude-opus-5": (5.00, 25.00),
     "claude-sonnet-5": (2.00, 10.00),
     "claude-haiku-4-5": (1.00, 5.00),
-    "llama-3.3-70b-versatile": (0.0, 0.0),  # Groq 무료 티어
+    # Groq 무료 티어. 모델 목록은 자주 바뀌므로 console.groq.com/docs/models 확인
+    "openai/gpt-oss-120b": (0.0, 0.0),
+    "openai/gpt-oss-20b": (0.0, 0.0),
+    "llama-3.3-70b-versatile": (0.0, 0.0),  # 2026-06 지원 종료
     "deepseek-chat": (0.14, 0.28),
 }
 USD_TO_KRW = 1400

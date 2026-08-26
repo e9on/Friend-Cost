@@ -37,7 +37,7 @@
 
 ```bash
 .venv/Scripts/python.exe tools/evaluate_llm.py --provider stub --count 8 --repeat 3
-.venv/Scripts/python.exe tools/evaluate_llm.py --provider groq --model llama-3.3-70b-versatile --key $GROQ_KEY
+.venv/Scripts/python.exe tools/evaluate_llm.py --provider groq --model openai/gpt-oss-120b --key $GROQ_KEY
 .venv/Scripts/python.exe tools/evaluate_llm.py --provider anthropic --model claude-haiku-4-5 --key $ANTHROPIC_KEY
 ```
 

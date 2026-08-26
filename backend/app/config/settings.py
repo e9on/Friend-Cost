@@ -67,7 +67,10 @@ class Settings(BaseSettings):
     ocr_engine: Literal["stub", "google_vision"] = "stub"
 
     # 어떤 모델을 쓸지는 실측으로 정한다. tools/evaluate_llm.py 참조.
-    llm_model: str = "llama-3.3-70b-versatile"
+    #
+    # **모델 목록은 자주 바뀐다.** Groq은 2026년 6월에 llama-3.3-70b-versatile 을
+    # 내렸다. 실측 전에 console.groq.com/docs/models 에서 현재 목록을 확인한다.
+    llm_model: str = "openai/gpt-oss-120b"
     llm_api_key: str | None = None
     # OpenAI 호환 후보의 주소를 직접 지정할 때만 쓴다. 알려진 곳은 자동으로 채운다
     llm_base_url: str | None = None

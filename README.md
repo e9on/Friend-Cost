@@ -86,7 +86,7 @@ LLM은 감정·노력·갈등 같은 **의미**를 0~100으로 판단할 뿐이�
 
 월 100건 기준 약 3,000원. 목표였던 3개월 10만 원의 6% 수준이다. 이 구간에서는 **가격이 아니라 품질과 개인정보로 고른다.**
 
-다만 규모가 커지면 달라진다. LLM은 Groq 무료 티어가 월 15,000건까지 덮지만 **OCR은 건당 과금이라 선형으로 오른다.** 월 5,000건이면 Vision 5만 원, CLOVA 24만 원이다. 자체 호스팅 전환점은 월 약 1,141건이다.
+다만 규모가 커지면 달라진다. LLM은 Groq 무료 티어가 월 15,000건까지 덮지만 **OCR은 건당 과금이라 선형으로 오른다.** 월 5,000건이면 Vision 5만 원, CLOVA 24만 원이다. 컨테이너 내장 OCR 전환점은 월 약 1,141건이다.
 
 저가 모델의 진짜 위험은 실패가 아니라 그럴듯한 오답이다. 어떤 대화를 넣어도 친밀도가 60~70만 나오는 모델은 관계를 못 읽는 것인데, 그건 오류로 드러나지 않고 사용자는 그 숫자를 믿는다.
 
@@ -102,7 +102,7 @@ LLM은 감정·노력·갈등 같은 **의미**를 0~100으로 판단할 뿐이�
 
 ```bash
 FC_LLM_PROVIDER=groq          # stub | anthropic | groq | deepseek | together | openrouter
-FC_LLM_MODEL=llama-3.3-70b-versatile
+FC_LLM_MODEL=openai/gpt-oss-120b
 FC_LLM_API_KEY=...
 
 FC_OCR_ENGINE=google_vision   # stub | google_vision
@@ -113,7 +113,7 @@ FC_OCR_API_KEY=...
 
 ```bash
 cd backend
-.venv/Scripts/python.exe tools/evaluate_llm.py --provider groq --model llama-3.3-70b-versatile --key $GROQ_KEY
+.venv/Scripts/python.exe tools/evaluate_llm.py --provider groq --model openai/gpt-oss-120b --key $GROQ_KEY
 ```
 
 후보와 절차는 [AI 모델 선정 보고서](mdfiles/AI-모델-선정-보고서.md) 8장에 있다.
