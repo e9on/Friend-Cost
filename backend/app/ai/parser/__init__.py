@@ -10,6 +10,7 @@ OCR·Parser 명세 4~11장.
 import re
 from dataclasses import dataclass
 from datetime import date, timedelta
+from collections import Counter
 from typing import Final, Sequence
 
 from app.ai.parser.normalize import is_system_message, normalize_text
@@ -44,6 +45,15 @@ MERGE_LINE_FACTOR: Final = 0.4
 MERGE_ALIGN_RATIO: Final = 0.03  # 같은 말풍선으로 볼 정렬 오차 (이미지 폭 대비)
 NAME_LABEL_MAX_LEN: Final = 12
 NAME_LABEL_GAP_FACTOR: Final = 1.2
+# 같은 텍스트가 이만큼 반복되어야 발신자 이름으로 본다.
+#
+# **높이로는 가를 수 없다.** 실측에서 1:1 오탐의 높이비(0.61~0.98)와 진짜
+# 이름의 높이비(0.82~0.97)가 완전히 겹쳤다. OCR 상자 높이는 글꼴 크기가
+# 아니라 받침과 윗선이 있는지를 따라간다.
+#
+# 발신자 이름은 그 사람이 말할 때마다 다시 붙으므로 반복된다. 실측에서
+# 1:1 의 최다 반복은 2회, 단체방은 4~5회였다. 3이 그 사이다.
+NAME_LABEL_MIN_REPEATS: Final = 3
 # 겹침을 찾을 때 살펴보는 메시지 수.
 #
 # 사용자가 화면을 얼마나 겹쳐 찍을지는 우리가 정할 수 없다. 창보다 많이
@@ -89,24 +99,43 @@ def _is_time_label(text: str) -> bool:
     return bool(_TIME_LABEL.match(text.strip()))
 
 
-def _detect_group_chat(blocks: Sequence[OcrBlock], page_width: int) -> None:
-    """왼쪽 말풍선 위에 붙은 발신자 이름이 둘 이상이면 단체방이다."""
+def _name_candidates(blocks: Sequence[OcrBlock], page_width: int) -> list[str]:
+    """왼쪽 말풍선 위에 붙은 발신자 이름 후보를 모은다.
+
+    **판정은 여기서 하지 않는다.** 이름은 여러 이미지에 흩어져 나타나므로
+    한 장 안에서 세면 반복 횟수를 채우지 못한다. 모으기만 하고 `parse` 가
+    전체를 합쳐 판정한다.
+    """
     left_blocks = [b for b in blocks if classify_block(b, page_width) is BlockRole.PEER]
-    names: set[str] = set()
+    found: list[str] = []
 
     for candidate in left_blocks:
-        if len(candidate.text.strip()) > NAME_LABEL_MAX_LEN or _is_time_label(candidate.text):
+        text = candidate.text.strip()
+        if len(text) > NAME_LABEL_MAX_LEN or _is_time_label(candidate.text):
             continue
-        below = [
-            other
-            for other in left_blocks
-            if other is not candidate
+        below = any(
+            other is not candidate
             and 0 < other.box.y - candidate.box.bottom < candidate.box.h * NAME_LABEL_GAP_FACTOR
             and other.box.h > candidate.box.h
-        ]
+            for other in left_blocks
+        )
         if below:
-            names.add(candidate.text.strip())
+            found.append(text)
 
+    return found
+
+
+def _detect_group_chat(candidates: Sequence[str]) -> None:
+    """반복되는 이름 라벨이 둘 이상이면 단체방이다.
+
+    한 번 나타난 것을 이름으로 치면 **평범한 짧은 메시지가 걸린다.**
+    실측에서 "나 지금 회사야"가 발신자 이름으로 오인돼 정상 1:1 대화가
+    거부됐다. 사용자에게는 서비스 실패로 보인다.
+
+    `OCR-Parser-명세.md` 7장.
+    """
+    counts = Counter(candidates)
+    names = {text for text, count in counts.items() if count >= NAME_LABEL_MIN_REPEATS}
     if len(names) >= 2:
         raise AppError(ErrorCode.GROUP_CHAT_DETECTED)
 
@@ -132,7 +161,7 @@ def _merge_blocks(blocks: list[OcrBlock], role: BlockRole, page_width: int) -> l
     return groups
 
 
-def _collect_raw(page: OcrPage) -> tuple[list[_Raw], int]:
+def _collect_raw(page: OcrPage) -> tuple[list[_Raw], int, list[str]]:
     """한 이미지에서 메시지 후보를 뽑는다.
 
     날짜 구분선은 버리지 않고 위치를 지키는 표식으로 남긴다. 앵커가 화면
@@ -143,8 +172,7 @@ def _collect_raw(page: OcrPage) -> tuple[list[_Raw], int]:
 
     time_labels = [b for b in usable if _is_time_label(b.text)]
     others = [b for b in usable if not _is_time_label(b.text)]
-
-    _detect_group_chat(others, page.width)
+    name_candidates = _name_candidates(others, page.width)
 
     markers: list[_Raw] = []
     body_blocks: dict[BlockRole, list[OcrBlock]] = {BlockRole.ME: [], BlockRole.PEER: []}
@@ -185,7 +213,7 @@ def _collect_raw(page: OcrPage) -> tuple[list[_Raw], int]:
     _attach_time_labels(sorted(raws, key=lambda r: r.y), time_labels)
 
     combined = sorted(raws + markers, key=lambda r: r.y)
-    return combined, dropped
+    return combined, dropped, name_candidates
 
 
 def _attach_time_labels(raws: list[_Raw], labels: Sequence[OcrBlock]) -> None:
@@ -302,11 +330,16 @@ def parse(
     """OCR 페이지들을 `ConversationData` 로 바꾼다."""
     pages_raws: list[list[_Raw]] = []
     dropped = 0
+    name_candidates: list[str] = []
 
     for page in sorted(pages, key=lambda p: p.image_index):
-        raws, page_dropped = _collect_raw(page)
+        raws, page_dropped, page_names = _collect_raw(page)
         dropped += page_dropped
         pages_raws.append(raws)
+        name_candidates.extend(page_names)
+
+    # 이름은 여러 이미지에 흩어져 나타난다. 장마다 세면 놓친다
+    _detect_group_chat(name_candidates)
 
     # 시각 복원은 이미지 경계를 넘어 한 번에 한다. 앵커가 이어져야 하기 때문이다
     _restore_timestamps([raw for raws in pages_raws for raw in raws])

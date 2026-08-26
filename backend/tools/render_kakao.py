@@ -101,15 +101,20 @@ def wrap(draw, text: str, font, max_width: int) -> list[str]:
 
 
 class KakaoRenderer:
-    def __init__(self, seed: int = 0, font_size: int = 30) -> None:
+    def __init__(self, seed: int = 0, font_size: int = 30, senders: tuple[str, ...] = ()) -> None:
         self.rng = random.Random(seed)
         self.font = ImageFont.truetype(FONT_PATH, font_size)
         self.stamp_font = ImageFont.truetype(FONT_PATH, 19)
         self.date_font = ImageFont.truetype(FONT_BOLD, 21)
+        # 단체방이면 왼쪽 말풍선 위에 발신자 이름이 붙는다. 실제 카카오톡은
+        # 본문보다 작은 글꼴을 쓴다. 이 비율이 감지의 근거이므로 지어내지 않고
+        # 실제와 비슷하게 맞춘다
+        self.name_font = ImageFont.truetype(FONT_PATH, int(font_size * 0.8))
+        self.senders = senders
         self.truths: list[Truth] = []
 
     def render(self, turns: int, start_hour: int = 9, with_date: bool = True):
-        height = 200 + turns * 110
+        height = 200 + turns * (140 if self.senders else 110)
         image = Image.new("RGB", (WIDTH, height), BG)
         draw = ImageDraw.Draw(image)
         y = 40
@@ -123,6 +128,9 @@ class KakaoRenderer:
             pool = ME_LINES if mine else PEER_LINES
             text = pool[self.rng.randrange(len(pool))]
             stamp = f"오전 {hour}:{minute:02d}" if hour < 12 else f"오후 {hour - 12 or 12}:{minute:02d}"
+            if not mine and self.senders:
+                name = self.senders[self.rng.randrange(len(self.senders))]
+                y = self._sender_name(draw, y, name)
             y = self._bubble(draw, y, text, stamp, mine)
 
             minute += self.rng.randint(1, 9)
@@ -140,6 +148,11 @@ class KakaoRenderer:
         )
         draw.text((x, y + 8), text, font=self.date_font, fill=(255, 255, 255))
         return y + 38 + GAP + 6
+
+    def _sender_name(self, draw, y: int, name: str) -> int:
+        """말풍선 위 발신자 이름. 단체방에만 있다."""
+        draw.text((EDGE + PROFILE, y), name, font=self.name_font, fill=(70, 78, 90))
+        return y + self.name_font.size + 8
 
     def _bubble(self, draw, y: int, text: str, stamp: str, mine: bool) -> int:
         lines = wrap(draw, text, self.font, MAX_BUBBLE_W - BUBBLE_PAD_X * 2)
@@ -194,13 +207,19 @@ def main() -> None:
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--count", type=int, default=6, help="이미지 수")
     parser.add_argument("--turns", type=int, default=14, help="화면당 메시지 수")
+    parser.add_argument(
+        "--senders",
+        nargs="*",
+        default=[],
+        help="단체방 발신자 이름. 주면 왼쪽 말풍선 위에 이름이 붙는다",
+    )
     args = parser.parse_args()
 
     args.out.mkdir(parents=True, exist_ok=True)
     manifest = []
 
     for index in range(args.count):
-        renderer = KakaoRenderer(seed=index)
+        renderer = KakaoRenderer(seed=index, senders=tuple(args.senders))
         image = renderer.render(args.turns, start_hour=9 + index, with_date=index == 0)
         name = f"{index:02d}.png"
         image.save(args.out / name)

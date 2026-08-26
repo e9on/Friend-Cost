@@ -15,6 +15,14 @@ dependencies = [
 anthropic = [
     "anthropic>=0.40",
 ]
+# 컨테이너 내장 OCR. API 키가 필요 없는 대신 상시 실행 인스턴스를 전제한다.
+#
+# 3.0 미만을 쓰면 안 된다. 구버전(`rapidocr-onnxruntime`)의 한국어 모델은
+# 2021년 것뿐이라 문자 오류율이 54%였다. 3.x 는 PP-OCRv4 한국어 모델을
+# 받아 쓰며 같은 캡처에서 31.7%가 나왔다.
+ocr = [
+    "rapidocr>=3.0",
+]
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",

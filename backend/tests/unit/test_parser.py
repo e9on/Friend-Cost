@@ -5,7 +5,7 @@ OCR·Parser 명세 4~11장.
 
 import pytest
 
-from app.ai.parser import parse
+from app.ai.parser import NAME_LABEL_MIN_REPEATS, parse
 from app.common.errors import AppError, ErrorCode
 from app.domain.value_object.enums import Speaker, TimeSource
 from tests.fixtures.kakao import ScreenBuilder, message_text, simple_chat
@@ -151,17 +151,44 @@ class TestNormalizationAndDropping:
 
 
 class TestGroupChatDetection:
-    def test_rejects_a_chat_with_multiple_name_labels(self):
+    """이름은 **반복될 때** 이름으로 본다.
+
+    한 번 나타난 것을 이름으로 치면 "나 지금 회사야" 같은 평범한 메시지가
+    걸려 정상 1:1 대화가 거부된다. 실측에서 실제로 그랬다.
+    `OCR-Parser-명세.md` 7장.
+    """
+
+    def test_rejects_a_chat_with_repeated_name_labels(self):
         screen = ScreenBuilder().center("2026년 8월 25일")
-        screen.peer_name("김철수")
-        screen.peer("안녕", at="오전 9:00")
-        screen.peer_name("이영희")
-        screen.peer("나도 안녕", at="오전 9:01")
+        for turn in range(NAME_LABEL_MIN_REPEATS):
+            screen.peer_name("김철수")
+            screen.peer(f"안녕 {turn}", at=f"오전 9:0{turn}")
+            screen.peer_name("이영희")
+            screen.peer(f"나도 안녕 {turn}", at=f"오전 9:1{turn}")
 
         with pytest.raises(AppError) as caught:
             parse([screen.build()], min_messages=1)
 
         assert caught.value.code is ErrorCode.GROUP_CHAT_DETECTED
+
+    def test_알려진_한계_각자_한_번씩만_말한_단체방은_놓친다(self):
+        """오탐과 미탐 중 오탐을 더 나쁘게 본 결과다.
+
+        짧은 답장은 실제 대화에서 매우 흔하므로, 한 번 나타난 짧은 텍스트를
+        이름으로 치면 정상 이용자가 서비스를 거부당한다. 이 테스트는 그
+        대가를 **눈에 보이게** 남겨둔다. 나중에 더 나은 단서를 찾으면
+        이 테스트가 먼저 깨진다.
+        """
+        screen = ScreenBuilder().center("2026년 8월 25일")
+        screen.peer_name("김철수")
+        screen.peer("안녕", at="오전 9:00")
+        screen.peer_name("이영희")
+        screen.peer("나도 안녕", at="오전 9:01")
+        screen.me("둘 다 안녕", at="오전 9:02")
+
+        convo = parse([screen.build()], min_messages=1)
+
+        assert convo.meta.message_count > 0, "지금은 단체방으로 보지 않는다"
 
     def test_single_name_label_is_not_a_group_chat(self):
         screen = ScreenBuilder().center("2026년 8월 25일")

@@ -34,11 +34,11 @@ from app.domain.model.conversation import OcrPage  # noqa: E402
 from app.domain.value_object.enums import Speaker, TimeSource  # noqa: E402
 
 
-def build_engine(name: str, key: str | None):
+def build_engine(name: str, key: str | None, lang="korean", version="PP-OCRv4"):
     if name == "rapid":
         from app.infrastructure.ocr.rapid import RapidOcrEngine
 
-        return RapidOcrEngine()
+        return RapidOcrEngine(lang=lang, ocr_version=version)
     if name == "stub":
         from app.infrastructure.ocr.stub import StubOcrEngine
 
@@ -107,17 +107,62 @@ def score_speakers(pages, truth) -> dict:
     }
 
 
+def _infix_distance(target: str, blob: str) -> int:
+    """`target` 이 `blob` 어딘가에 얼마나 비슷하게 나타나는지.
+
+    보통의 편집 거리를 쓰면 안 된다. OCR 결과에는 시각 라벨·날짜·다른
+    메시지가 함께 들어 있어서, 문장 하나를 전체와 비교하면 나머지가 전부
+    오류로 잡힌다. 블록 하나씩 비교하는 것도 틀렸다. **OCR 은 말풍선을 여러
+    줄로 쪼개므로** 한 블록 안에 문장이 다 들어 있지 않다.
+
+    그래서 시작과 끝을 자유롭게 둔다. 첫 행을 0으로 채워 앞을 건너뛸 수 있게
+    하고, 마지막 행의 최솟값을 취해 뒤를 건너뛴다. 결과는 "이 문장과 가장
+    비슷한 구간까지의 편집 거리"다.
+    """
+    if not target:
+        return 0
+    if not blob:
+        return len(target)
+
+    previous = [0] * (len(blob) + 1)  # 앞부분은 공짜로 건너뛴다
+    for i, ct in enumerate(target, start=1):
+        current = [i]
+        for j, cb in enumerate(blob, start=1):
+            current.append(
+                min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (ct != cb))
+            )
+        previous = current
+    return min(previous)  # 뒷부분도 공짜로 건너뛴다
+
+
 def score_text(pages, truth) -> dict:
-    """정답 문장이 OCR 결과 어딘가에 그대로 나타나는지."""
+    """정답 문장이 얼마나 정확히 읽혔는지.
+
+    완전 일치율만 보면 한 글자 틀린 것과 통째로 못 읽은 것이 같아진다.
+    실제로 `korean_mobile_v2.0` 이 "다음 주에 시간 어때"를 "다음 축에 시가
+    어때"로 읽었는데, 일치율로는 0%라 못 읽은 것과 구분되지 않았다.
+    그래서 **문자 단위 오류율(CER)** 을 함께 낸다.
+    """
     found = 0
     expected = 0
+    errors = 0
+    characters = 0
     for page, page_truth in zip(pages, truth):
-        blob = normalize(" ".join(block.text for block in page.blocks))
+        blob = "".join(normalize(block.text) for block in page.blocks)
         for message in page_truth["messages"]:
+            target = normalize(message["text"])
             expected += 1
-            if normalize(message["text"]) in blob:
+            characters += len(target)
+            if target in blob:
                 found += 1
-    return {"found": found, "expected": expected, "rate": found / expected if expected else 0.0}
+            else:
+                errors += min(_infix_distance(target, blob), len(target))
+    return {
+        "found": found,
+        "expected": expected,
+        "rate": found / expected if expected else 0.0,
+        "cer": errors / characters if characters else 1.0,
+    }
 
 
 def report(name, pages, truth, elapsed, convo, parse_error) -> None:
@@ -132,7 +177,8 @@ def report(name, pages, truth, elapsed, convo, parse_error) -> None:
     speakers = score_speakers(pages, truth)
     text = score_text(pages, truth)
 
-    print(f"\n  텍스트 인식률       {text['rate']:.1%}  ({text['found']}/{text['expected']} 문장)")
+    print(f"\n  문장 완전 일치      {text['rate']:.1%}  ({text['found']}/{text['expected']} 문장)")
+    print(f"  문자 오류율(CER)    {text['cer']:.1%}  (낮을수록 좋다)")
     print(f"  화자 판별 정확도    {speakers['accuracy']:.1%}", end="")
     print(f"  (맞음 {speakers['correct']}, 틀림 {speakers['wrong']}, 중앙 {speakers['center']})")
     print(f"  대조 안 된 블록      {speakers['unmatched']}개 (시각 라벨·날짜 구분선 등)")
@@ -173,6 +219,8 @@ async def main() -> None:
     parser.add_argument("--images", type=Path, required=True)
     parser.add_argument("--engine", default="rapid")
     parser.add_argument("--key", default=None)
+    parser.add_argument("--lang", default="korean", help="인식 언어")
+    parser.add_argument("--ocr-version", default="PP-OCRv4", help="모델 세대")
     parser.add_argument("--out", type=Path, default=None, help="OcrPage JSON 저장")
     args = parser.parse_args()
 
@@ -186,7 +234,7 @@ async def main() -> None:
         raise SystemExit("캡처를 찾지 못했습니다.")
     print(f"엔진: {args.engine}, 캡처 {len(paths)}장")
 
-    engine = build_engine(args.engine, args.key)
+    engine = build_engine(args.engine, args.key, args.lang, args.ocr_version)
     payload = [path.read_bytes() for path in paths]
 
     started = time.perf_counter()
