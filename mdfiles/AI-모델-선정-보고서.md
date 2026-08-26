@@ -74,7 +74,9 @@ Groq은 예외적으로 **입력을 학습에 쓸 수 없다고 계약으로 못
 - Groq Services Agreement — "고객이 명시적으로 허락하지 않는 한 입력·출력을 학습이나 파인튜닝에 쓸 수 없다"
 - Your Data in GroqCloud — 기본적으로 보관하지 않는다. 장애 대응·악용 조사 시 **최대 30일** 임시 로그가 예외다
 
-그 30일 경로도 **Zero Data Retention** 을 켜면 닫힌다. 콘솔 Data Controls 에서 직접 켤 수 있다. 다만 무료 티어에서도 켜지는지는 문서에 명시돼 있지 않아 확인이 필요하다.
+그 30일 경로는 **Global ZDR** 을 켜면 닫힌다. 콘솔 Settings → Data Controls 에 있고 **무료 티어에서도 켜진다**(2026-08-26 확인).
+
+주의할 것은 **기본값이 저장하는 쪽**이라는 점이다. 콘솔에 "Starting October 15, 2025, Groq may store inputs and outputs for up to 30 days" 라고 적혀 있다. 켜지 않으면 대화가 30일간 남는다. 조치는 `운영-보안-법적고지-명세.md` 4.3.
 
 #### 모델 제작사와 추론 제공자를 구분한다
 
