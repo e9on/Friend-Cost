@@ -64,7 +64,7 @@ class Settings(BaseSettings):
     llm_provider: Literal[
         "stub", "anthropic", "groq", "deepseek", "together", "openrouter"
     ] = "stub"
-    ocr_engine: Literal["stub", "google_vision"] = "stub"
+    ocr_engine: Literal["stub", "google_vision", "rapid"] = "stub"
 
     # 어떤 모델을 쓸지는 실측으로 정한다. tools/evaluate_llm.py 참조.
     #

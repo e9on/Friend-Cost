@@ -76,6 +76,12 @@ def _build_ocr_engine(settings: Settings) -> OcrEngine:
             api_key=settings.ocr_api_key,
             timeout_seconds=settings.ocr_timeout_seconds,
         )
+    if settings.ocr_engine == "rapid":
+        # 컨테이너 내장 OCR. API 키가 필요 없는 대신 상시 실행을 전제한다.
+        # 모델을 처음 쓸 때 약 23MB를 내려받으므로 배포 이미지에 미리 넣는다
+        from app.infrastructure.ocr.rapid import RapidOcrEngine
+
+        return RapidOcrEngine()
     raise ValueError(f"알 수 없는 ocr engine: {settings.ocr_engine}")
 
 

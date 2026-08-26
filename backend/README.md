@@ -26,7 +26,7 @@
 | --- | --- |
 | `FC_LLM_PROVIDER` | `stub` · `anthropic` · `groq` · `deepseek` · `together` · `openrouter` |
 | `FC_LLM_REASONING_EFFORT` | 계열마다 다르다. gpt-oss는 `low`·`medium`·`high`, qwen은 `none`·`default` |
-| `FC_OCR_ENGINE` | `stub` · `google_vision` |
+| `FC_OCR_ENGINE` | `stub` · `google_vision` · `rapid` |
 
 후보 조사와 선정 근거는 [`mdfiles/AI-모델-선정-보고서.md`](../mdfiles/AI-모델-선정-보고서.md)에 있다.
 

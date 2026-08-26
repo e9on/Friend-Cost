@@ -234,3 +234,32 @@ class TestProviderSelection:
         )
 
         assert engine.name == "google_vision"
+
+
+class TestRapidOcrSelection:
+    """컨테이너 내장 OCR 을 설정으로 고를 수 있는지.
+
+    엔진 구현과 평가 도구는 있었는데 `_build_ocr_engine` 에 분기가 없어서
+    실제로는 고를 수 없었다. `FC_OCR_ENGINE=rapid` 로 띄우면 설정 검증에서
+    막혔다. 교체 지점은 설정뿐이라는 원칙이 여기서 깨져 있었다.
+    """
+
+    def test_설정으로_고를_수_있다(self):
+        from app.infrastructure.ocr.rapid import RapidOcrEngine
+
+        engine = _build_ocr_engine(Settings(ocr_engine="rapid"))
+
+        assert isinstance(engine, RapidOcrEngine)
+
+    def test_키가_필요_없다(self):
+        # API 키 없이 뜨는 것이 이 후보의 존재 이유다
+        engine = _build_ocr_engine(Settings(ocr_engine="rapid", ocr_api_key=None))
+
+        assert engine.name == "rapid"
+
+    def test_한국어_모델이_기본값이다(self):
+        # 기본 모델은 중국어·영어라 한글을 한 글자도 읽지 못한다.
+        # 그 상태로도 오류가 나지 않고 빈 결과가 나오므로 눈에 띄지 않는다
+        from app.infrastructure.ocr.rapid import DEFAULT_LANG
+
+        assert DEFAULT_LANG == "korean"
