@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>친구비 측정기 개발 보고서</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 20mm; }
+
+  :root {
+    --ink: #1a1a1f;
+    --muted: #5c5c68;
+    --line: #d8d8e0;
+    --accent: #b8860b;
+    --bad: #b03030;
+    --good: #2d7a4f;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: "Malgun Gothic", "맑은 고딕", sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.65;
+    color: #1a1a1f;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1 {
+    font-size: 22pt;
+    margin: 0 0 4pt;
+    letter-spacing: -0.02em;
+  }
+  .subtitle { color: #5c5c68; font-size: 11pt; margin: 0 0 4pt; }
+  .meta { color: #8a8a96; font-size: 9pt; margin: 0 0 18pt; }
+
+  h2 {
+    font-size: 14pt;
+    margin: 22pt 0 8pt;
+    padding-bottom: 5pt;
+    border-bottom: 2px solid #1a1a1f;
+    page-break-after: avoid;
+  }
+  h3 {
+    font-size: 11.5pt;
+    margin: 14pt 0 5pt;
+    page-break-after: avoid;
+  }
+  p { margin: 0 0 8pt; }
+  ul, ol { margin: 0 0 8pt; padding-left: 18pt; }
+  li { margin-bottom: 3pt; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8pt 0 12pt;
+    font-size: 9.5pt;
+    page-break-inside: avoid;
+  }
+  th, td {
+    border: 1px solid #d8d8e0;
+    padding: 5pt 7pt;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: #f2f2f6; font-weight: 700; }
+  td.num, th.num { text-align: right; white-space: nowrap; }
+
+  code {
+    font-family: Consolas, "D2Coding", monospace;
+    font-size: 9pt;
+    background: #f2f2f6;
+    padding: 1pt 3pt;
+    border-radius: 2pt;
+  }
+  pre {
+    font-family: Consolas, "D2Coding", monospace;
+    font-size: 8.5pt;
+    line-height: 1.5;
+    background: #f7f7fa;
+    border: 1px solid #e2e2ea;
+    border-radius: 3pt;
+    padding: 8pt 10pt;
+    overflow: visible;
+    white-space: pre-wrap;
+    page-break-inside: avoid;
+    margin: 6pt 0 10pt;
+  }
+
+  .lead {
+    background: #f7f7fa;
+    border-left: 3px solid #1a1a1f;
+    padding: 10pt 12pt;
+    margin: 0 0 16pt;
+  }
+  .lead p:last-child { margin-bottom: 0; }
+
+  .stats {
+    display: flex;
+    gap: 6pt;
+    margin: 0 0 16pt;
+  }
+  .stat {
+    flex: 1;
+    border: 1px solid #d8d8e0;
+    border-radius: 3pt;
+    padding: 8pt;
+    text-align: center;
+  }
+  .stat .value { font-size: 16pt; font-weight: 800; letter-spacing: -0.02em; }
+  .stat .label { font-size: 8pt; color: #5c5c68; margin-top: 2pt; }
+
+  .defect {
+    border: 1px solid #d8d8e0;
+    border-left: 3px solid #b03030;
+    border-radius: 3pt;
+    padding: 8pt 11pt;
+    margin: 0 0 8pt;
+    page-break-inside: avoid;
+  }
+  .defect .title { font-weight: 700; margin-bottom: 3pt; }
+  .defect .body { font-size: 9.5pt; color: #3a3a44; }
+  .defect .body strong { color: #b03030; }
+
+  .note {
+    border: 1px solid #e2e2ea;
+    background: #fbfbfd;
+    border-radius: 3pt;
+    padding: 8pt 11pt;
+    font-size: 9.5pt;
+    margin: 8pt 0 12pt;
+  }
+
+  .verdict { font-weight: 700; }
+  .pass { color: #2d7a4f; }
+  .fail { color: #b03030; }
+
+  .page-break { page-break-before: always; }
+  footer {
+    margin-top: 20pt;
+    padding-top: 8pt;
+    border-top: 1px solid #d8d8e0;
+    font-size: 8.5pt;
+    color: #8a8a96;
+  }
+</style>
+</head>
+<body>
+
+<h1>친구비 측정기</h1>
+<p class="subtitle">개발 보고서 — 명세 수립부터 결함 해결까지</p>
+<p class="meta">2026년 8월 25일 ~ 26일 · 작성: Claude Opus 5</p>
+
+<div class="lead">
+  <p><strong>카카오톡 1:1 대화 캡처를 분석해 두 사람의 관계를 숫자와 리포트로 보여주는 웹 서비스.</strong> 계정도, 기록도, 영구 저장도 없다. 결과는 20분 뒤 사라진다.</p>
+  <p>이 보고서는 명세 문서를 정리하는 일에서 시작해 백엔드·프론트엔드 구현, AI 모델 조사, 그리고 <strong>결함 19개를 찾아 고치기까지</strong>의 기록이다.</p>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="value">35</div><div class="label">커밋</div></div>
+  <div class="stat"><div class="value">9</div><div class="label">명세 문서</div></div>
+  <div class="stat"><div class="value">635</div><div class="label">테스트</div></div>
+  <div class="stat"><div class="value">98%</div><div class="label">백엔드 커버리지</div></div>
+  <div class="stat"><div class="value">19</div><div class="label">해결한 결함</div></div>
+</div>
+
+<h2>1. 무엇을 만들었나</h2>
+
+<table>
+  <tr><th style="width:22%">영역</th><th>내용</th><th style="width:18%">상태</th></tr>
+  <tr><td>명세 문서</td><td>기준 명세를 정점으로 데이터 계약·점수 규칙·API·OCR·프롬프트·프론트·조사보고서·운영보안 9종</td><td>완료</td></tr>
+  <tr><td>백엔드</td><td>FastAPI, Python 3.10 고정. 테스트 542개, 커버리지 98%</td><td>완료</td></tr>
+  <tr><td>프론트엔드</td><td>React + TypeScript + Vite, 모바일 우선. 테스트 93개</td><td>완료</td></tr>
+  <tr><td>OCR·LLM 연결</td><td>Provider 구현은 완료. <strong>기본값은 스텁</strong></td><td>실측 대기</td></tr>
+  <tr><td>공개 준비</td><td>약관·처리방침 본문, 배포</td><td>미완료</td></tr>
+</table>
+
+<p>업로드부터 결과 저장·삭제까지 전 구간이 실제로 동작한다. 요청대로 <strong>실제 AI 모델은 붙이지 않았다.</strong> 결정론적 스텁이 그 자리에 있고, 설정 한 줄로 교체된다.</p>
+
+<h3>이 프로젝트를 이해하는 다섯 가지</h3>
+
+<p><strong>1. 화자는 말풍선의 좌우 위치로만 구분된다.</strong> 캡처에 "누가 보냈는지"를 알려주는 텍스트가 없다. 그래서 OCR 엔진은 좌표를 반환해야 하고, 이건 순위가 아니라 자격 요건이다. 판별은 중심점이 아니라 <strong>좌우 여백</strong>을 비교한다 — 긴 메시지는 중심점이 가운데로 몰리기 때문이다.</p>
+
+<p><strong>2. 점수는 코드가 계산하고 LLM은 의미만 읽는다.</strong> LLM은 감정·노력·갈등을 0~100으로 판단할 뿐이고, 비율과 평균은 전부 코드가 센다. 같은 대화에 항상 같은 점수가 나와야 하기 때문이다.</p>
+
+<p><strong>3. 우리가 다루는 건 남의 사적인 대화다.</strong> 업로더는 자기 대화라 생각하지만 캡처의 절반은 동의하지 않은 상대방이 쓴 글이다. 여기서 많은 결정이 나왔다.</p>
+
+<p><strong>4. 비용은 이미 문제가 아니다.</strong> 월 100건 기준 약 3,000원, 목표의 6% 수준이다. 그래서 가격이 아니라 품질과 개인정보로 고른다.</p>
+
+<p><strong>5. 문서와 코드가 어긋나면 테스트가 깨진다.</strong> 사람이 지키는 규칙은 언젠가 깨지므로 기계가 지키게 했다.</p>
+
+<div class="page-break"></div>
+<h2>2. 해결한 결함 19개</h2>
+
+<p>공통점이 하나 있다. <strong>전부 "재본 적 없는 값"이었다.</strong> 하나같이 그럴듯해 보였고, 실제로 재보니 틀렸다. 그리고 대부분 <strong>결과가 그럴듯하게 나와서</strong> 실사용 전에는 알아채기 어려웠을 것들이다.</p>
+
+<h3>결과를 조용히 망가뜨리던 것들</h3>
+
+<div class="defect">
+  <div class="title">시간이 26년 거꾸로 흘렀다</div>
+  <div class="body">날짜 구분선은 보통 첫 화면에만 찍히는데 이미지마다 앵커를 초기화했다. 두 번째 이미지부터 가상 기준일(2000년)로 되돌아가 <strong>대화 기간이 8억 초</strong>로 나왔다. 스모크 테스트에서 잡았다.</div>
+</div>
+
+<div class="defect">
+  <div class="title">답장 지연 점수가 100점에 도달할 수 없었다</div>
+  <div class="body">6시간 넘는 간격은 "답장이 아니라 새 세션"으로 버리도록 해놓고, 점수 척도의 상한은 24시간이었다. <strong>도달 불가능한 구간</strong>이 존재했다.</div>
+</div>
+
+<div class="defect">
+  <div class="title">별개 메시지 두 개가 한 말풍선으로 합쳐졌다</div>
+  <div class="body">병합 허용치가 블록 높이의 1.5배였는데, 말풍선 안 줄 간격은 거의 0이고 메시지 사이엔 여백이 있다. 1.5배가 그 여백까지 덮었다. <strong>메시지 수가 줄어 연락 균형도와 답장 속도가 통째로 틀어진다.</strong> 0.4배로 좁혔다.</div>
+</div>
+
+<div class="defect">
+  <div class="title">20개 겹친 캡처에서 중복을 하나도 못 잡았다</div>
+  <div class="body">살펴보는 범위가 앞뒤 10개씩이라, 겹침이 그보다 크면 앞 이미지 꼬리와 뒤 이미지 머리가 아예 만나지 않았다. 일부만 놓치는 게 아니라 <strong>전부</strong> 놓쳤다. 45개여야 할 대화가 65개가 됐다.</div>
+</div>
+
+<div class="defect">
+  <div class="title">"먼저 연락 비율"이 어떤 점수에도 쓰이지 않았다</div>
+  <div class="body">0.00이든 1.00이든 친밀도·위험도·친구비가 <strong>한 자리도 움직이지 않았다.</strong> 서비스가 대표 지표로 내세우는 값이 화면에 표시만 되고 계산에서 빠져 있었다. "메시지는 반반인데 항상 나만 말 거는 관계"를 완벽한 균형으로 오판했다.</div>
+</div>
+
+<div class="defect">
+  <div class="title">친구비 중간 50%가 13,000원 폭에 갇혀 있었다</div>
+  <div class="body">산식이 세 항의 곱이라 값이 가운데로 몰렸다. 친구 셋을 재면 38,000·41,000·44,000원이 나와 <strong>아무것도 알려주지 못했다.</strong> 정규 CDF 보정으로 39,000원 폭으로 3배 벌렸다.</div>
+</div>
+
+<div class="defect">
+  <div class="title">없는 정밀도를 주장했다</div>
+  <div class="body">카톡 시각은 분 단위라 같은 분에 오간 메시지는 간격이 0초로 계산되는데, 화면에 그대로 "0초"라고 썼다. <strong>사용자는 즉답으로 읽는다.</strong> "1분 이내"로 바꿨다.</div>
+</div>
+
+<h3>운영 중 터졌을 것들</h3>
+
+<div class="defect">
+  <div class="title">결과를 안 보고 창을 닫으면 IP가 영구 차단됐다</div>
+  <div class="body">동시 실행 슬롯 반납이 상태 폴링에 묶여 있었다. 한도만큼 반복하면 <strong>스스로를 프로세스 재시작까지 차단</strong>했다.</div>
+</div>
+
+<div class="defect">
+  <div class="title">blob 저장소가 쓰기 전용이었다</div>
+  <div class="body">업로드 이미지를 저장소에 넣어놓고 한 번도 읽지 않았다. 인메모리에선 티가 안 나지만, <strong>외부 오브젝트 스토리지로 갈아 끼우는 날</strong> 분석이 빈 입력으로 돌아갔을 것이다.</div>
+</div>
+
+<div class="defect">
+  <div class="title">동시성 20이 메모리 예산을 거의 다 썼다</div>
+  <div class="body">배포 문서에 동시성 20 + 512Mi를 함께 적었는데 재본 적 없는 값이었다. 실측하니 <strong>446MB</strong>로 여유가 66MB뿐이었다. 실제 OCR 응답이 더해지면 컨테이너가 죽고 진행 중이던 분석이 전부 사라진다. 동시성 8로 조정했다.</div>
+</div>
+
+<div class="defect">
+  <div class="title">Rate limiter의 IP 기록이 무한히 쌓였다</div>
+  <div class="body">창 밖의 기록만 버리고 키는 남겨서, 서로 다른 IP가 들어올 때마다 빈 항목이 누적됐다.</div>
+</div>
+
+<h3>보안·개인정보</h3>
+
+<div class="defect">
+  <div class="title">jobId를 로그에 찍고 있었다 — 명세 위반</div>
+  <div class="body">jobId는 별도 인증이 없어 <strong>그 자체가 접근 토큰</strong>이다. 로그를 읽을 수 있는 사람이 남의 대화 분석 결과를 조회할 수 있었다. API 명세가 명시적으로 금지한 것을 코드가 어기고 있었다.</div>
+</div>
+
+<div class="defect">
+  <div class="title">33바이트 파일이 9억 화소를 선언하고 통과했다</div>
+  <div class="body">용량 검사만 있고 화소 검사가 없었다. 균일한 색 PNG는 33바이트로도 30000×30000을 선언한다. 서버가 죽지는 않지만 <strong>OCR 비용이 샌다.</strong> 한 변이 아니라 총 화소로 막았다 — 변마다 상한을 두면 8000×8000을 놓친다.</div>
+</div>
+
+<div class="defect">
+  <div class="title">30MB 본문을 전부 받은 뒤에야 거절했다</div>
+  <div class="body">상한이 20MB인데 그걸 넘는 요청도 일단 다 받았다. <code>Content-Length</code>로 읽기 전에 413으로 거절하도록 했다.</div>
+</div>
+
+<div class="defect">
+  <div class="title">감사 로그 길이 제한이 한글에 무력했다</div>
+  <div class="body">"40자 넘으면 거부"로 만들었더니 <strong>한글이 통과했다.</strong> "오늘 진짜 힘들었는데"는 12자다. 길이를 아무리 조여도 짧은 대화는 빠져나간다. ASCII 식별자만 허용하도록 바꿨다.</div>
+</div>
+
+<h3>그 밖</h3>
+
+<table>
+  <tr><th style="width:34%">결함</th><th>내용</th></tr>
+  <tr><td>JPEG 패딩 파싱 실패</td><td>마커 앞 <code>0xFF</code> 패딩이 있는 정상 이미지를 "지원하지 않는 형식"으로 거절했다</td></tr>
+  <tr><td>프레임워크 오류 규격 이탈</td><td>multipart 파싱 실패가 <code>{"detail": ...}</code>로 새어 나가 클라이언트가 오류를 한 방법으로 읽을 수 없었다</td></tr>
+  <tr><td>미리보기가 스크린리더에서 사라짐</td><td>빈 <code>alt</code>. 어떤 캡처를 골랐는지 알려주는 의미 있는 이미지인데 장식으로 취급됐다</td></tr>
+  <tr><td>에러 바운더리 부재</td><td>컴포넌트 하나가 던지면 화면이 통째로 하얘졌다</td></tr>
+</table>
+
+<div class="page-break"></div>
+<h2>3. AI 모델 조사</h2>
+
+<div class="lead">
+  <p><strong>결론: 무료 티어 대부분은 이 서비스에 쓸 수 없다. 성능이나 한도 때문이 아니라 데이터 정책 때문이다.</strong></p>
+</div>
+
+<p>우리가 다루는 것은 사용자 본인의 데이터가 아니라 <strong>대화 상대방의 사적인 메시지</strong>다. 입력을 학습에 쓰거나 사람이 검토할 수 있는 티어에 그 대화를 보내는 것은, 월 2,000원을 아끼려고 감수할 위험이 아니다.</p>
+
+<table>
+  <tr><th style="width:20%">제공자</th><th style="width:24%">무료 한도</th><th style="width:30%">입력을 학습에 쓰는가</th><th class="num">판정</th></tr>
+  <tr><td>Google Gemini</td><td>1,500 요청/일</td><td><strong>쓴다. 사람 검토 가능</strong></td><td class="num verdict fail">탈락</td></tr>
+  <tr><td>Mistral</td><td>월 약 10억 토큰</td><td><strong>학습 동의가 사용 조건</strong></td><td class="num verdict fail">탈락</td></tr>
+  <tr><td>Groq</td><td>30 RPM, 1,000 요청/일</td><td>쓰지 않음 (무료·유료 동일)</td><td class="num verdict pass">통과</td></tr>
+  <tr><td>Cerebras</td><td>약 100만 토큰/일</td><td>공개 정보 불충분</td><td class="num">확인 필요</td></tr>
+</table>
+
+<p>Gemini는 성능만 보면 최선의 후보였다. 무료 한도가 초기 규모를 통째로 덮고, 텍스트와 bounding box를 함께 반환해 OCR까지 겸할 수 있다. 즉 <strong>"무료라서 탈락"이 아니라 "무료 티어라서 탈락"</strong>이다. 유료로 쓰면 유효한 후보다.</p>
+
+<h3>OCR 선정 기준</h3>
+
+<p>일반적인 "성능 대비 가격" 비교로는 답이 나오지 않는다. <strong>좌표 제공이 자격 요건</strong>이고, 그다음이 한국어 정확도이며, 비용은 세 번째다.</p>
+
+<table>
+  <tr><th style="width:30%">후보</th><th>한국어 정확도</th><th>무료 한도</th><th class="num">초과 비용</th></tr>
+  <tr><td>Google Cloud Vision <strong>(1순위)</strong></td><td>상위권, 속도 최상</td><td>월 1,000페이지</td><td class="num">약 2원/건</td></tr>
+  <tr><td>Naver CLOVA OCR</td><td>인쇄체 97%+ (최상위)</td><td>월 1,000건</td><td class="num">약 10원/건</td></tr>
+  <tr><td>PaddleOCR (자체 호스팅)</td><td>95%+</td><td>무제한</td><td class="num">서버 비용</td></tr>
+</table>
+
+<div class="note">
+  <strong>자체 호스팅의 숨은 비용.</strong> PaddleOCR은 라이선스가 0이지만 상시 실행 컨테이너가 필요해, "요청 없을 때 인스턴스가 0으로 내려가는" 배포와 충돌한다. 월 수백 건 규모에서는 건당 과금 API가 더 싸다.
+</div>
+
+<h3>비용</h3>
+
+<table>
+  <tr><th>항목</th><th class="num">월 100건</th><th class="num">3개월</th></tr>
+  <tr><td>서버 (Cloud Run 무료 한도 내)</td><td class="num">0원</td><td class="num">0원</td></tr>
+  <tr><td>LLM (2회 호출, 토큰 압축 적용)</td><td class="num">약 2,000원</td><td class="num">6,000원</td></tr>
+  <tr><td>OCR</td><td class="num">약 1,000원</td><td class="num">3,000원</td></tr>
+  <tr><th>합계</th><th class="num">약 3,000원</th><th class="num">약 1만 원</th></tr>
+</table>
+
+<p>목표가 3개월 10만 원이었으니 <strong>10분의 1</strong>이다. 그래서 복잡도를 늘려 추가로 절감하지 않는다.</p>
+
+<div class="note">
+  <strong>저가 모델의 진짜 위험은 실패가 아니라 그럴듯한 오답이다.</strong> 어떤 대화를 넣어도 친밀도가 60~70만 나오는 모델은 관계를 못 읽는 것인데, 그건 오류로 드러나지 않고 사용자는 그 숫자를 믿는다. 그래서 평가 도구의 핵심 지표를 정확도가 아니라 <strong>결과 분산</strong>으로 잡았다.
+</div>
+
+<div class="page-break"></div>
+<h2>4. 오래 남을 두 가지</h2>
+
+<h3>문서와 코드가 어긋나면 테스트가 깨진다</h3>
+
+<p>기준 명세는 "데이터 구조를 바꿀 때 데이터 계약 명세를 먼저 고치고 나머지를 따라 고친다"고 정했다. 그런데 사람이 지키는 규칙은 언젠가 깨지고, 코드를 고치고 문서를 잊는 쪽이 훨씬 흔하다.</p>
+
+<p>그래서 문서의 숫자를 파싱해 코드 상수와 직접 비교한다. 문서·백엔드·프론트 세 곳이 갈라지면 CI가 막는다.</p>
+
+<pre>TTL을 코드에서만 20분 → 15분으로 변경  →  즉시 실패
+이미지 상한을 프론트에서만 10 → 20으로 변경  →  즉시 실패</pre>
+
+<p>둘 다 일부러 어긋나게 해서 잡히는 것을 확인했다.</p>
+
+<h3>실측 도구 체인</h3>
+
+<pre>1단계  실제 캡처 → OCR 평가 + 픽스처 저장
+   python tools/evaluate_ocr.py --images caps/대화01 --engine google_vision \
+       --key $KEY --out fx/대화01.json --review review/대화01.txt
+
+2단계  저장된 픽스처로 LLM 후보 비교 (OCR 재실행 불필요)
+   python tools/evaluate_llm.py --provider groq --key $GROQ_KEY \
+       --fixtures fx/ --repeat 3
+
+3단계  친구비 보정값 재산출
+   python tools/calibrate_fee.py --fixtures fx/ --provider groq --key $KEY</pre>
+
+<p>화자 판별 정확도는 정답이 없어 자동으로 잴 수 없다. 그래서 사람이 훑을 검토 파일을 함께 내놓고, <strong>원문이 들어 있으니 확인 후 지우라</strong>고 파일 안에도 적었다.</p>
+
+<h2>5. 남은 일</h2>
+
+<table>
+  <tr><th style="width:30%">항목</th><th>필요한 것</th></tr>
+  <tr><td><strong>OCR·LLM 실측</strong></td><td>API 키. Groq은 무료이고 카드도 필요 없다. 도구와 절차는 준비돼 있다</td></tr>
+  <tr><td>실제 대화 검증</td><td>본인 카카오톡 캡처 20세트. 관계 유형이 섞이도록</td></tr>
+  <tr><td>이용약관·처리방침</td><td>법률 검토. 요구사항은 문서로 정리했다</td></tr>
+  <tr><td>배포</td><td>GCP 계정, 도메인. 명령과 근거는 <code>deploy/cloudrun.md</code></td></tr>
+</table>
+
+<div class="note">
+  <strong>정직하게 남긴 한계 두 가지.</strong><br>
+  ① 친구비 보정값은 합성 데이터에서 나왔다. 실제 모델의 출력 분포가 다르면 어긋나므로 실측 후 재산출이 필요하다.<br>
+  ② <code>jobId</code>는 URL 경로에 있어 배포 플랫폼의 접근 로그에는 남는다. 애플리케이션 로그는 테스트로 막았지만 Cloud Run·프록시·CDN이 남기는 요청 로그는 통제할 수 없다. TTL 20분이 노출 창을 좁히지만 없애지는 못한다.
+</div>
+
+<h2>6. 마치며</h2>
+
+<p>이번 작업에서 가장 반복적으로 확인된 사실은 이것이다.</p>
+
+<p><strong>재보지 않은 값은 대체로 틀려 있었다.</strong> 말풍선 병합 1.5배, 중복 제거 창 10개, 친구비 산식, 먼저 연락 비율의 가중치, 동시성 20, 감사 로그의 길이 제한. 전부 작성 당시에는 합리적으로 보였고, 실제로 측정하니 모두 어긋나 있었다.</p>
+
+<p>그리고 이 결함들은 <strong>예외를 던지지 않았다.</strong> 그럴듯한 숫자를 내놓았고, 사용자는 그것을 자기 관계를 반영한 결과로 믿었을 것이다. 관계를 숫자로 보여주는 서비스에서는 그것이 가장 위험한 실패 방식이다.</p>
+
+<footer>
+  친구비 측정기 개발 보고서 · 2026-08-26 · 커밋 35개 · 테스트 635개 · 결함 19개 해결
+</footer>
+
+</body>
+</html>
