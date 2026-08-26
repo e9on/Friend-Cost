@@ -46,11 +46,11 @@ Python은 **3.10 고정**이다. `StrictEnum`, `asyncio.timeout`, `datetime.UTC`
 교체 지점은 설정뿐이다. 코드를 고치지 않는다.
 
 ```bash
-FC_LLM_PROVIDER / FC_LLM_MODEL / FC_LLM_API_KEY
+FC_LLM_PROVIDER / FC_LLM_MODEL / FC_LLM_API_KEY / FC_LLM_REASONING_EFFORT
 FC_OCR_ENGINE / FC_OCR_API_KEY
 ```
 
-붙이기 전에 `backend/tools/evaluate_ocr.py` 와 `evaluate_llm.py` 로 실측한다. 절차는 `mdfiles/AI-모델-선정-보고서.md` 8장.
+붙이기 전에 `backend/tools/evaluate_ocr.py` 와 `compare_llm.py` 로 실측한다. LLM은 **순위 일치도**로 고른다. 스키마를 다 지키면서 절친과 일방적 관계를 구분하지 못하는 모델이 가장 위험하다. 오류를 내지 않으므로 눈에 띄지 않는다. 절차는 `mdfiles/AI-모델-선정-보고서.md` 8장.
 
 Provider를 바꾸면 **`mdfiles/운영-보안-법적고지-명세.md` 4.3의 제3자 제공 목록도 함께 고친다.** 코드만 바꾸고 고지를 방치하면 사실과 다른 안내가 된다.
 

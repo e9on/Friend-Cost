@@ -98,16 +98,19 @@ LLM은 감정·노력·갈등 같은 **의미**를 0~100으로 판단할 뿐이�
 
 ## 실제 모델 붙이기
 
-교체 지점은 설정 두 개다.
+교체 지점은 설정뿐이다.
 
 ```bash
-FC_LLM_PROVIDER=groq          # stub | anthropic | groq | deepseek | together | openrouter
+FC_LLM_PROVIDER=groq              # stub | anthropic | groq | deepseek | together | openrouter
 FC_LLM_MODEL=openai/gpt-oss-120b
 FC_LLM_API_KEY=...
+FC_LLM_REASONING_EFFORT=low       # 추론 모델만. gpt-oss는 low, qwen은 none
 
 FC_OCR_ENGINE=google_vision   # stub | google_vision
 FC_OCR_API_KEY=...
 ```
+
+**추론 모델에는 `FC_LLM_REASONING_EFFORT` 를 반드시 채운다.** 비워두면 모델이 `reasoning` 에 출력 예산을 다 쓰고 본문을 못 내놓아 400이 난다. 허용값이 계열마다 다르다(gpt-oss: `low`/`medium`/`high`, qwen: `none`/`default`).
 
 붙이기 전에 실측한다.
 

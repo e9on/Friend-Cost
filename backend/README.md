@@ -25,6 +25,7 @@
 | 구분 | 사용 가능한 값 |
 | --- | --- |
 | `FC_LLM_PROVIDER` | `stub` · `anthropic` · `groq` · `deepseek` · `together` · `openrouter` |
+| `FC_LLM_REASONING_EFFORT` | 계열마다 다르다. gpt-oss는 `low`·`medium`·`high`, qwen은 `none`·`default` |
 | `FC_OCR_ENGINE` | `stub` · `google_vision` |
 
 후보 조사와 선정 근거는 [`mdfiles/AI-모델-선정-보고서.md`](../mdfiles/AI-모델-선정-보고서.md)에 있다.
@@ -92,7 +93,7 @@ app
 
 교체 지점은 두 곳뿐이다.
 
-**LLM** — Anthropic과 OpenAI 호환 후보(Groq 등)는 이미 구현되어 있다. `FC_LLM_PROVIDER`, `FC_LLM_MODEL`, `FC_LLM_API_KEY` 만 채우면 된다. 새 후보를 추가할 때는 `app/ai/provider/` 에 구현을 넣고 `_build_llm_provider` 에 분기를 더한다.
+**LLM** — Anthropic과 OpenAI 호환 후보(Groq 등)는 이미 구현되어 있다. `FC_LLM_PROVIDER`, `FC_LLM_MODEL`, `FC_LLM_API_KEY` 만 채우면 된다. 추론 모델이면 `FC_LLM_REASONING_EFFORT` 도 채운다 — 비워두면 추론이 출력 예산을 다 먹고 본문을 못 내놓아 400이 난다. 새 후보를 추가할 때는 `app/ai/provider/` 에 구현을 넣고 `_build_llm_provider` 에 분기를 더한다.
 
 OpenAI 호환 스펙을 따르는 곳은 구현 하나로 모두 덮으므로, 대부분 설정만 바뀐다.
 
@@ -117,6 +118,7 @@ Provider는 전송만 한다. 프롬프트는 `app/ai/prompt/`, 응답 검증은
 | `FC_DAILY_ANALYSIS_LIMIT` | 10 | IP당 일일 분석 |
 | `FC_TOTAL_TIMEOUT_SECONDS` | 180 | 분석 전체 제한 |
 | `FC_LLM_PROVIDER` | stub | 교체 지점 |
+| `FC_LLM_REASONING_EFFORT` | 없음 | 추론 모델의 사고 분량 |
 | `FC_OCR_ENGINE` | stub | 교체 지점 |
 
 ## 배포 시 주의

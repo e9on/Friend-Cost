@@ -31,6 +31,7 @@ SCORING = DOCS / "관계-점수-계산-규칙.md"
 API = DOCS / "API-명세.md"
 BASE = DOCS / "친구비-측정기-서비스-기준-명세.md"
 OCR = DOCS / "OCR-Parser-명세.md"
+PROMPT = DOCS / "AI-프롬프트-명세.md"
 
 
 def read(path: Path) -> str:
@@ -393,3 +394,50 @@ class TestFrontendAgreesWithBackend:
 
         assert "/deletion" in front
         assert "/deletion" in back
+
+
+class TestPromptSpec:
+    """프롬프트 명세와 코드.
+
+    출력 토큰 상한을 800에서 1500으로 올린 일이 있었다. 추론 모델이 reasoning
+    에 예산을 다 쓰고 본문을 못 내놓아 400이 났기 때문이다. 그때 문서와 코드를
+    손으로 함께 고쳤는데, 다음에 한쪽만 바뀌면 걸리는 곳이 없었다.
+    """
+
+    def test_분석_출력_토큰_상한이_문서와_같다(self):
+        from app.ai.agent.analysis import MAX_OUTPUT_TOKENS
+
+        text = read(PROMPT)
+        section = text.split("### 4.5")[1].split("###")[0]
+        numbers = {int(n) for n in re.findall(r"\*\*(\d{3,5})\.?\*\*", section)}
+
+        assert MAX_OUTPUT_TOKENS in numbers, (
+            f"코드는 {MAX_OUTPUT_TOKENS}인데 문서 4.5에는 {numbers or '숫자가 없다'}"
+        )
+
+    def test_리포트_출력_토큰_상한이_문서와_같다(self):
+        from app.ai.agent.report import MAX_OUTPUT_TOKENS
+
+        section = read(PROMPT).split("### 5.7")[1].split("##")[0]
+
+        assert str(MAX_OUTPUT_TOKENS) in section, (
+            f"코드는 {MAX_OUTPUT_TOKENS}인데 문서 5.7에 그 값이 없다"
+        )
+
+    def test_추론_설정_이름이_문서에_적혀_있다(self):
+        # 설정으로 교체한다는 원칙이 지켜지려면 이름이 문서에 있어야 한다
+        assert "llm_reasoning_effort" in Settings.model_fields
+        assert "FC_LLM_REASONING_EFFORT" in read(PROMPT)
+
+    def test_리포트_글자수_상한이_모델과_같다(self):
+        section = read(PROMPT).split("### 5.4")[1].split("###")[0]
+
+        for name, field in ReportData.model_fields.items():
+            limit = next(
+                (m.max_length for m in field.metadata if hasattr(m, "max_length")), None
+            )
+            if limit is None or name == "sections":
+                continue
+            assert f"{limit}자" in section, (
+                f"{name} 상한 {limit}자가 문서 5.4에 없다"
+            )
