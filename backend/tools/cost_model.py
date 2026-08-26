@@ -35,9 +35,21 @@ VISION_PER_1K_USD = 1.50
 CLOVA_FREE_UNITS = 1_000
 CLOVA_PER_UNIT_KRW = 10.0
 
-# 자체 호스팅 OCR: 상시 실행 인스턴스가 필요하다.
-# 소형 인스턴스 월 $7 안팎. 스케일-투-제로를 포기하는 대가다.
-SELF_HOSTED_MONTHLY_USD = 7.0
+# 자체 호스팅 OCR: 상시 실행 인스턴스가 필요하다. 어디에 띄우느냐로 갈린다.
+#
+# **"로컬 PC에서 돌린다"는 뜻이 아니다.** 클라우드 컨테이너 안에 OCR 모델을
+# 넣어 Vision API 호출을 대신한다는 뜻이다. 배포처는 여전히 클라우드다.
+#
+# Cloud Run: 최소 인스턴스를 1로 두면 유휴 요금이 붙는다. 1 vCPU + 2GiB
+# 기준 시간당 약 $0.027. 스케일-투-제로를 포기하는 대가가 여기서 나온다.
+# 무료 한도(vCPU 180,000초)는 상시 실행 한 달치의 7%밖에 덮지 못한다.
+SELF_HOSTED_CLOUDRUN_HOURLY_USD = 0.027
+
+# 저가 VPS: 월 고정 요금. 훨씬 싸지만 관리 부담을 직접 진다.
+# OS 패치, HTTPS 인증서, 모니터링, 장애 대응이 모두 우리 몫이 된다.
+SELF_HOSTED_VPS_MONTHLY_USD = 7.0
+
+HOURS_PER_MONTH = 730
 
 # --- Cloud Run ---
 # 무료: vCPU 180,000초, 메모리 360,000 GiB-초, 요청 200만
@@ -87,15 +99,21 @@ def clova_cost(images: int) -> float:
     return max(0, images - CLOVA_FREE_UNITS) * CLOVA_PER_UNIT_KRW
 
 
-def self_hosted_cost(_images: int) -> float:
-    """상시 실행이라 건수와 무관하게 고정이다."""
-    return SELF_HOSTED_MONTHLY_USD * USD_TO_KRW
+def self_hosted_cloudrun_cost(_images: int) -> float:
+    """Cloud Run 최소 인스턴스 1. 상시 실행이라 건수와 무관하게 고정이다."""
+    return SELF_HOSTED_CLOUDRUN_HOURLY_USD * HOURS_PER_MONTH * USD_TO_KRW
+
+
+def self_hosted_vps_cost(_images: int) -> float:
+    """저가 VPS. 싸지만 서버 관리를 직접 한다."""
+    return SELF_HOSTED_VPS_MONTHLY_USD * USD_TO_KRW
 
 
 OCR_OPTIONS = {
-    "vision": ("Google Vision", vision_cost),
-    "clova": ("Naver CLOVA", clova_cost),
-    "self": ("자체 호스팅", self_hosted_cost),
+    "vision": ("Google Vision (API)", vision_cost),
+    "clova": ("Naver CLOVA (API)", clova_cost),
+    "self_run": ("자체 호스팅 — Cloud Run 상시", self_hosted_cloudrun_cost),
+    "self_vps": ("자체 호스팅 — 저가 VPS", self_hosted_vps_cost),
 }
 
 
@@ -134,12 +152,11 @@ def won(value: float) -> str:
     return f"{round(value):,}원"
 
 
-def crossover(images_each: int) -> int:
-    """자체 호스팅이 Vision API보다 싸지는 월 분석 건수."""
-    fixed = self_hosted_cost(0)
+def crossover(images_each: int, fixed_cost: float) -> int:
+    """고정 비용이 Vision API 비용을 넘어서는 월 분석 건수."""
     analyses = 1
     while analyses < 1_000_000:
-        if vision_cost(analyses * images_each) >= fixed:
+        if vision_cost(analyses * images_each) >= fixed_cost:
             return analyses
         analyses += 10
     return -1
@@ -178,15 +195,22 @@ def main() -> None:
             print(row)
         print()
 
-    point = crossover(args.images)
     print("=" * 74)
-    print(" 전환점")
+    print(" 전환점 — 자체 호스팅이 Vision API보다 싸지는 지점")
     print("=" * 74)
-    print(f"  자체 호스팅 OCR이 Vision API보다 싸지는 지점: 월 약 {point:,}건")
+    for key in ("self_run", "self_vps"):
+        label, fn = OCR_OPTIONS[key]
+        fixed = fn(0)
+        point = crossover(args.images, fixed)
+        print(f"  {label:<28} 고정 {won(fixed):>10}  →  월 약 {point:,}건")
+    print()
     print(f"  Groq 무료 티어 한도: 월 {GROQ_MONTHLY_ANALYSES:,}건 (하루 500건)")
     print()
-    print("  주의: 자체 호스팅은 상시 실행이라 스케일-투-제로를 포기한다.")
-    print("        서버 비용이 함께 오르므로 위 표의 '서버' 열도 달라진다.")
+    print("  자체 호스팅은 '로컬 PC에서 돌린다'는 뜻이 아니다.")
+    print("  클라우드 컨테이너 안에 OCR 모델을 넣어 API 호출을 대신한다는 뜻이다.")
+    print()
+    print("  Cloud Run 상시 실행은 스케일-투-제로를 포기하는 것이고,")
+    print("  VPS는 싸지만 OS 패치·인증서·모니터링을 직접 진다.")
 
 
 if __name__ == "__main__":
