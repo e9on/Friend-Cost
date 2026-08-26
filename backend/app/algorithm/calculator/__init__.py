@@ -7,6 +7,7 @@
 from app.algorithm.calculator.behavior import (
     contact_balance,
     first_contact_ratio,
+    peer_reply_chances,
     reply_seconds,
     split_sessions,
 )
@@ -39,10 +40,13 @@ def calculate_scores(
     sessions = split_sessions(convo)
     balance = contact_balance(convo)
     replies = reply_seconds(convo)
+    # 표본이 없을 때 "모른다"와 "6시간 안에 답한 적이 없다"를 가르려면
+    # 기회 횟수가 필요하다. 관계-점수-계산-규칙 8장
+    chances = peer_reply_chances(convo)
     initiation = first_contact_ratio(convo)
 
     intimacy_score = intimacy(analysis, balance)
-    risk_score = breakup_risk(analysis, balance, replies.peer, initiation)
+    risk_score = breakup_risk(analysis, balance, replies.peer, initiation, chances)
 
     return RelationshipScoreData(
         friend_fee=friend_fee(intimacy_score, balance, risk_score),

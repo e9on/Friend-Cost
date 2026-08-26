@@ -101,6 +101,26 @@ def reply_seconds(convo: ConversationData) -> ReplySeconds:
     )
 
 
+def peer_reply_chances(convo: ConversationData) -> int:
+    """상대가 답할 차례였던 횟수. 간격 길이와 무관하게 센다.
+
+    `reply_seconds` 는 6시간을 넘는 간격을 버린다. 그래서 답장이 아주 느린
+    상대는 표본이 하나도 남지 않고, 그 결과가 "모른다"(None)와 구별되지
+    않는다. 둘을 같게 다루면 **답장이 느릴수록 위험이 낮아진다.**
+
+    기회 횟수는 그 구별에 쓴다. 기회가 여러 번 있었는데 창 안에서 답한 적이
+    없다면 그건 데이터가 없는 것이 아니라 느린 것이다.
+
+    `관계-점수-계산-규칙.md` 8장.
+    """
+    runs = _runs(convo.timed_messages())
+    return sum(
+        1
+        for previous, current in zip(runs, runs[1:])
+        if current[0].speaker is Speaker.PEER and current[0].sent_at >= previous[-1].sent_at
+    )
+
+
 def contact_balance(convo: ConversationData) -> int:
     """연락 균형도. 100이 완전 균형이다.
 

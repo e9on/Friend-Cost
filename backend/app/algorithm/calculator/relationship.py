@@ -16,6 +16,7 @@ from app.algorithm.rule.constants import (
     FEE_MAX,
     FEE_MIN,
     FEE_UNIT,
+    MIN_REPLY_SAMPLES,
     MIN_SESSIONS,
     RELIABLE_MESSAGES,
     RELIABLE_TIME_COVERAGE,
@@ -58,15 +59,24 @@ def intimacy(analysis: RelationshipAnalysisData, contact_balance: int) -> int:
     )
 
 
-def reply_delay_score(peer_reply_seconds: int | None) -> int:
+def reply_delay_score(peer_reply_seconds: int | None, chances: int = 0) -> int:
     """상대의 답장이 느릴수록 높아지는 보조 점수.
 
     로그 스케일을 쓰는 이유는 5분과 30분의 차이가 3시간과 4시간의 차이보다
     관계적으로 크기 때문이다.
 
-    표본이 없으면(``None``) 0으로 둔다. 모르는 것을 위험으로 치지 않는다.
+    표본이 없을 때(``None``)는 두 경우를 가른다. `chances` 는 상대가 답할
+    차례였던 횟수다.
+
+    - 차례 자체가 드물었다면 **모르는 것**이므로 0이다.
+    - 차례는 여러 번 있었는데 6시간 안에 답한 적이 없다면 **측정된 사실**
+      이므로 100이다. 이걸 0으로 두면 답장이 느릴수록 위험이 낮아진다.
+
+    `관계-점수-계산-규칙.md` 8장.
     """
-    if peer_reply_seconds is None or peer_reply_seconds <= REPLY_FLOOR_SECONDS:
+    if peer_reply_seconds is None:
+        return 100 if chances >= MIN_REPLY_SAMPLES else 0
+    if peer_reply_seconds <= REPLY_FLOOR_SECONDS:
         return 0
     if peer_reply_seconds >= REPLY_CEIL_SECONDS:
         return 100
@@ -114,13 +124,18 @@ def breakup_risk(
     contact_balance: int,
     peer_reply_seconds: int | None,
     first_contact_ratio: float = 0.5,
+    peer_reply_chances: int = 0,
 ) -> int:
-    """손절 위험도."""
+    """손절 위험도.
+
+    `peer_reply_chances` 는 상대가 답할 차례였던 횟수다. 표본이 없을 때
+    "모른다"와 "6시간 안에 답한 적이 없다"를 가르는 데 쓴다.
+    """
     return clamp_score(
         W_RISK_CONFLICT * analysis.conflict_level
         + W_RISK_IMBALANCE * contact_imbalance_score(contact_balance, first_contact_ratio)
         + W_RISK_PEER_EFFORT * (100 - analysis.effort_level.peer)
-        + W_RISK_REPLY_DELAY * reply_delay_score(peer_reply_seconds)
+        + W_RISK_REPLY_DELAY * reply_delay_score(peer_reply_seconds, peer_reply_chances)
         + W_RISK_PROMISE * promise_break_score(analysis.promise_signals)
         + W_RISK_MONEY * money_risk_score(analysis.money_signals)
     )
