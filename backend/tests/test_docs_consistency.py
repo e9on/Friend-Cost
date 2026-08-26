@@ -487,3 +487,76 @@ class TestEnvExample:
         )
 
         assert model in report, f"예시의 모델 {model} 이 선정 보고서에 없다"
+
+
+LEGAL = ROOT / "legal"
+
+
+class TestLegalDrafts:
+    """약관·처리방침이 실제 동작과 어긋나지 않는지.
+
+    **틀린 고지는 없는 것보다 나쁘다.** 처리방침에 "20분 뒤 삭제"라고
+    적어두고 코드가 30분을 쓰면, 이용자에게 사실과 다른 약속을 한 것이 된다.
+
+    이 문서들은 법률 검토 전 초안이지만, 사실관계만큼은 코드와 맞춰둔다.
+    """
+
+    def test_두_문서가_모두_있다(self):
+        assert (LEGAL / "이용약관.md").exists()
+        assert (LEGAL / "개인정보-처리방침.md").exists()
+
+    def test_보관_기간이_설정과_같다(self):
+        minutes = Settings().ttl_seconds // 60
+
+        for name in ("이용약관.md", "개인정보-처리방침.md"):
+            text = read(LEGAL / name)
+            assert f"{minutes}분" in text, f"{name} 에 {minutes}분이 없다"
+
+    def _deployed(self, key: str) -> str:
+        """배포할 설정값.
+
+        `Settings()` 의 기본값을 보면 안 된다. 기본값은 안전하게 `stub` 로
+        두었고, 테스트는 로컬 `.env` 도 격리한다. 고지가 맞춰야 하는 것은
+        **배포할 설정**이며 그건 커밋된 `.env.example` 에 적혀 있다.
+        """
+        for line in read(ROOT / "backend" / ".env.example").splitlines():
+            if line.startswith(f"{key}="):
+                return line.split("=", 1)[1].strip()
+        raise AssertionError(f".env.example 에 {key} 가 없다")
+
+    def test_제3자가_배포할_사업자와_같다(self):
+        # Provider 를 바꾸면 고지도 함께 고쳐야 한다. 설정만 바꾸고
+        # 고지를 방치하면 사실과 다른 안내가 된다
+        text = read(LEGAL / "개인정보-처리방침.md")
+        provider = self._deployed("FC_LLM_PROVIDER")
+
+        assert provider.lower() in text.lower(), (
+            f"배포할 LLM 사업자({provider})가 처리방침에 없다"
+        )
+
+    def test_이미지가_외부로_나가지_않는다는_서술이_설정과_맞는다(self):
+        """컨테이너 내장 OCR 일 때만 참인 문장이다.
+
+        `google_vision` 으로 바꾸면 이미지가 외부로 나가므로 이 서술은
+        거짓이 된다. 그 상태로 공개하면 이용자를 속이는 것이다.
+        """
+        text = read(LEGAL / "개인정보-처리방침.md")
+        claims_local = "이미지는 외부로 나가지 않는다" in text
+        engine = self._deployed("FC_OCR_ENGINE")
+
+        if engine == "rapid":
+            assert claims_local, "컨테이너 내장 OCR 인데 그 사실이 적혀 있지 않다"
+        else:
+            assert not claims_local, (
+                f"OCR 이 {engine} 인데 외부로 나가지 않는다고 적혀 있다"
+            )
+
+    def test_법률_검토_전임을_문서_스스로_밝힌다(self):
+        # 검토받은 것처럼 보이면 그대로 공개될 수 있다
+        for name in ("이용약관.md", "개인정보-처리방침.md"):
+            assert "법률 검토를 받지 않았다" in read(LEGAL / name), name
+
+    def test_만_14세_기준이_화면과_같다(self):
+        text = read(LEGAL / "이용약관.md")
+
+        assert "만 14세 이상" in text
