@@ -358,6 +358,12 @@ async def main() -> None:
         help="관계 스펙트럼 대화로 평가한다. 모델 선정은 이걸로 한다",
     )
     parser.add_argument("--seeds", type=int, default=1, help="프로필당 대화 수")
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=0.0,
+        help="대화 사이 간격(초). 분당 토큰 한도가 있는 곳에서는 채운다",
+    )
     parser.add_argument("--repeat", type=int, default=0, help="재현성 확인 반복 횟수")
     args = parser.parse_args()
 
@@ -381,7 +387,7 @@ async def main() -> None:
     provider = build_provider(
         args.provider, args.model, args.key, args.base_url, args.reasoning_effort
     )
-    report = await evaluate(provider, args.model, samples)
+    report = await evaluate(provider, args.model, samples, delay=args.delay)
 
     repeats: list[list[int]] | None = None
     if args.repeat >= 2 and samples:

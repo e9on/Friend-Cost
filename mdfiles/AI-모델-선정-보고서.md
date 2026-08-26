@@ -20,7 +20,7 @@
 | 구분 | 1순위 | 대안 |
 | --- | --- | --- |
 | OCR | Google Cloud Vision | Naver CLOVA OCR (한국어 정확도 우선 시) |
-| LLM | Groq 무료 티어 (평가용) | Claude Haiku 4.5 (품질 기준선) |
+| LLM | **Groq `qwen/qwen3.8-27b`** (2026-08-26 실측으로 확정) | `qwen/qwen3.6-27b` (더 빠름), Claude Haiku 4.5 (품질 기준선) |
 | 볼륨 증가 시 | PaddleOCR 컨테이너 내장 OCR | 저가 유료 모델로 전환 |
 
 ## 2. 이 서비스만의 선정 기준
@@ -245,14 +245,21 @@ Analysis Agent가 하는 일은 **한국어 반말 대화의 관계적 뉘앙스
 
 | 항목 | 기준 |
 | --- | --- |
-| **스키마 준수율** | 1차 시도 성공 비율. 90% 미만이면 탈락 |
-| **결과 분산** | 서로 다른 관계에 서로 다른 점수가 나오는가. 모두 비슷하면 못 읽고 있는 것이다 |
-| **재현성** | 같은 입력 3회 반복 시 점수 편차 |
+| **순위 일치도** | 기대한 관계 순서를 지키는가. 65% 미만이면 탈락 |
+| **결과 분산** | 값을 얼마나 벌리는가. 순위가 같다면 편차가 큰 쪽을 고른다 |
+| 스키마 준수율 | 1차 시도 성공 비율 |
+| 재현성 | 같은 입력 3회 반복 시 점수 편차 |
 | 한국어 리포트 품질 | 어색한 번역투, 존댓말 혼용, 사실과 다른 서술 |
 | 지연 | 호출당 초 |
 | 건당 비용 | 원 |
 
-**결과 분산이 가장 중요하다.** 스키마를 지키고 문장이 매끄러워도, 어떤 대화를 넣든 친밀도가 60~70으로만 나온다면 그 모델은 관계를 읽지 못하는 것이다. 사용자는 이것을 알아차리지 못한 채 결과를 믿는다.
+**순위 일치도가 가장 중요하다.** 스키마를 지키고 문장이 매끄러워도, 절친과 일방적 관계를 구분하지 못하면 그 모델은 쓸 수 없다. 그런 모델은 오류를 내지 않으므로 눈에 띄지 않고, 사용자는 그 숫자가 자기 관계를 반영한다고 믿는다.
+
+표준편차만 보면 안 되는 이유는, **값이 널뛰기만 해도 편차는 커지기 때문이다.** 관계를 구분하는지 보려면 순서가 맞는지를 봐야 한다. `tools/samples.py` 가 관계 여섯 종을 기대 순위와 함께 만들고, `concordance()` 가 방향이 맞는 쌍의 비율을 센다.
+
+모든 관계에 같은 값을 낸 모델은 "틀리지 않았다"가 아니라 **"판단하지 않았다"** 이므로 분모에서 빼고 "잴 수 없음"으로 표시한다. 그렇게 하지 않으면 일치율이 부풀어 오른다.
+
+**실제 캡처가 없어도 잴 수 있다.** 8.1의 캡처 20세트는 있으면 더 좋지만 전제 조건이 아니다. 아래 실측이 그 증거다.
 
 ### 8.4 진행 순서
 
@@ -285,13 +292,22 @@ python tools/evaluate_ocr.py --images caps/대화01 --engine google_vision --key
 
 OCR을 다시 돌릴 필요가 없다. 2단계에서 저장한 `OcrPage` JSON을 그대로 쓴다.
 
-```bash
-python tools/evaluate_llm.py --provider groq --model llama-3.3-70b-versatile     --key $GROQ_KEY --fixtures fixtures/ --repeat 3
+후보를 나란히 놓고 표 하나로 본다. 따로 돌려 결과를 머릿속에서 비교하면 성공률처럼 눈에 띄는 지표만 보고 정하게 된다.
 
-python tools/evaluate_llm.py --provider anthropic --model claude-haiku-4-5     --key $ANTHROPIC_KEY --fixtures fixtures/
+```bash
+python tools/compare_llm.py --key $GROQ_KEY
+python tools/compare_llm.py --key $GROQ_KEY --fixtures fixtures/
 ```
 
-성공률, 지연, 건당 비용, 재현성, **결과 분산**이 나온다. 친밀도 표준편차가 5 미만이면 경고를 띄운다.
+**분당 토큰 한도에 맞춰 간격을 둔다.** 기본값이 그 값이다. 무시하고 던지면 429가 쏟아지고, 그러면 성공률이 모델 품질이 아니라 요청 속도를 재게 된다.
+
+모델 하나를 자세히 보려면:
+
+```bash
+python tools/evaluate_llm.py --provider groq --model qwen/qwen3.8-27b     --reasoning-effort none --profiles --delay 20 --key $GROQ_KEY
+```
+
+**추론 모델에는 `--reasoning-effort` 를 반드시 준다.** 비우면 추론이 출력 예산을 다 먹고 본문을 못 내놓아 400이 난다. 허용값은 계열마다 다르다(3.3 표).
 
 **4단계 — 확정한다**
 
@@ -299,8 +315,9 @@ python tools/evaluate_llm.py --provider anthropic --model claude-haiku-4-5     -
 FC_OCR_ENGINE=google_vision
 FC_OCR_API_KEY=...
 FC_LLM_PROVIDER=groq
-FC_LLM_MODEL=llama-3.3-70b-versatile
+FC_LLM_MODEL=qwen/qwen3.8-27b
 FC_LLM_API_KEY=...
+FC_LLM_REASONING_EFFORT=none
 ```
 
 확정 후 이 문서와 `운영-보안-법적고지-명세.md` 4.3의 제3자 제공 목록을 갱신한다. 코드만 바꾸고 고지를 방치하면 사실과 다른 안내가 된다.
@@ -311,8 +328,8 @@ FC_LLM_API_KEY=...
 
 - **Naver CLOVA OCR의 좌표 응답 형식.** 좌표를 제공한다는 것은 확인했으나 필드 구조는 공식 문서 확인이 필요하다. 우리 `OcrBlock` 으로 변환 가능한지가 채택 조건이다.
 - **CLOVA 무료 한도.** 자료마다 월 1,000건과 5,000건으로 엇갈린다. 계약 전 확인이 필요하다.
-- **Cerebras·Qwen·DeepSeek·Ling의 데이터 정책.** 가격은 매력적이나 학습 사용 여부를 확인하지 못했다. 확인 전에는 후보로 올리지 않는다.
-- **Groq의 한국어 성능.** 제공 모델이 주로 Llama 계열이라 한국어 뉘앙스 처리가 미지수다. 실측이 필요하다.
+- **Cerebras·DeepSeek·Ling의 데이터 정책.** 가격은 매력적이나 학습 사용 여부를 확인하지 못했다. 확인 전에는 후보로 올리지 않는다. Qwen 은 Groq 위에서 돌리므로 Groq 정책을 따른다.
+- ~~**Groq의 한국어 성능.**~~ 2026-08-26 실측으로 해소했다. 9장 참조. 다만 합성 대화 기준이며 실제 캡처로 다시 재야 한다.
 - **Groq의 vision 모델 지원 여부.** OCR을 겸하게 할 수 있는지는 확인하지 못했다.
 
 ## 10. 개정 이력

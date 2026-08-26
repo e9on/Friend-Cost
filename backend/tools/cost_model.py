@@ -35,7 +35,7 @@ VISION_PER_1K_USD = 1.50
 CLOVA_FREE_UNITS = 1_000
 CLOVA_PER_UNIT_KRW = 10.0
 
-# 자체 호스팅 OCR: 상시 실행 인스턴스가 필요하다. 어디에 띄우느냐로 갈린다.
+# 컨테이너 내장 OCR: 상시 실행 인스턴스가 필요하다. 어디에 띄우느냐로 갈린다.
 #
 # **"로컬 PC에서 돌린다"는 뜻이 아니다.** 클라우드 컨테이너 안에 OCR 모델을
 # 넣어 Vision API 호출을 대신한다는 뜻이다. 배포처는 여전히 클라우드다.
@@ -74,9 +74,20 @@ LLM_PRICES: dict[str, tuple[float, float]] = {
     "haiku": (1.00, 5.00),
     "sonnet": (2.00, 10.00),
 }
-# Groq 무료 티어 한도. 분석 1건에 LLM 2회를 쓴다
+# Groq 무료 티어 한도. 2026-08-26 응답 헤더로 실측했다.
+#
+# **두 한도가 서로 다른 것을 잰다.** 요청 수는 하루 총량을, 토큰은 순간
+# 처리량을 묶는다. 총량만 보고 "초기 규모에서는 무제한"이라고 결론 내렸다가
+# 실측에서 429 가 쏟아졌다.
 GROQ_DAILY_REQUESTS = 1_000
-GROQ_MONTHLY_ANALYSES = GROQ_DAILY_REQUESTS // 2 * 30
+GROQ_TOKENS_PER_MINUTE = 8_000
+# 분석 1건에 LLM 2회, 합쳐 약 2,600토큰
+GROQ_REQUESTS_PER_ANALYSIS = 2
+GROQ_TOKENS_PER_ANALYSIS = 2_600
+
+GROQ_MONTHLY_ANALYSES = GROQ_DAILY_REQUESTS // GROQ_REQUESTS_PER_ANALYSIS * 30
+# 분당 몇 건까지 받을 수 있는가. 몰리는 시간대의 대기열 설계에 쓴다
+GROQ_ANALYSES_PER_MINUTE = GROQ_TOKENS_PER_MINUTE / GROQ_TOKENS_PER_ANALYSIS
 
 
 @dataclass
@@ -112,8 +123,8 @@ def self_hosted_vps_cost(_images: int) -> float:
 OCR_OPTIONS = {
     "vision": ("Google Vision (API)", vision_cost),
     "clova": ("Naver CLOVA (API)", clova_cost),
-    "self_run": ("자체 호스팅 — Cloud Run 상시", self_hosted_cloudrun_cost),
-    "self_vps": ("자체 호스팅 — 저가 VPS", self_hosted_vps_cost),
+    "self_run": ("컨테이너 내장 OCR — Cloud Run 상시", self_hosted_cloudrun_cost),
+    "self_vps": ("컨테이너 내장 OCR — 저가 VPS", self_hosted_vps_cost),
 }
 
 
@@ -196,7 +207,7 @@ def main() -> None:
         print()
 
     print("=" * 74)
-    print(" 전환점 — 자체 호스팅이 Vision API보다 싸지는 지점")
+    print(" 전환점 — 컨테이너 내장 OCR이 Vision API보다 싸지는 지점")
     print("=" * 74)
     for key in ("self_run", "self_vps"):
         label, fn = OCR_OPTIONS[key]
@@ -204,9 +215,15 @@ def main() -> None:
         point = crossover(args.images, fixed)
         print(f"  {label:<28} 고정 {won(fixed):>10}  →  월 약 {point:,}건")
     print()
-    print(f"  Groq 무료 티어 한도: 월 {GROQ_MONTHLY_ANALYSES:,}건 (하루 500건)")
+    print(f"  Groq 무료 티어 한도 (2026-08-26 실측)")
+    print(f"    총량   월 {GROQ_MONTHLY_ANALYSES:,}건 "
+          f"(요청 {GROQ_DAILY_REQUESTS:,}/일 ÷ 건당 {GROQ_REQUESTS_PER_ANALYSIS}회)")
+    print(f"    처리량 분당 {GROQ_ANALYSES_PER_MINUTE:.1f}건 "
+          f"(토큰 {GROQ_TOKENS_PER_MINUTE:,}/분 ÷ 건당 {GROQ_TOKENS_PER_ANALYSIS:,})")
     print()
-    print("  자체 호스팅은 '로컬 PC에서 돌린다'는 뜻이 아니다.")
+    print("  총량과 처리량은 다른 이야기다. 배포 설계에 걸리는 쪽은 처리량이다.")
+    print()
+    print("  '컨테이너 내장'은 로컬 PC에서 돌린다는 뜻이 아니다.")
     print("  클라우드 컨테이너 안에 OCR 모델을 넣어 API 호출을 대신한다는 뜻이다.")
     print()
     print("  Cloud Run 상시 실행은 스케일-투-제로를 포기하는 것이고,")
