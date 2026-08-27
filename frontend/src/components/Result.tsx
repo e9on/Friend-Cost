@@ -16,8 +16,9 @@ import {
   formatFee,
   formatPercent,
   formatSpan,
+  shareMessage,
 } from '../lib/format'
-import { drawResultCard, saveCard } from '../lib/shareImage'
+import { drawResultCard, saveCard, shareCard } from '../lib/shareImage'
 
 interface Props {
   result: AnalysisResult
@@ -39,7 +40,9 @@ function useCountdown(expiresAt: number): number {
 
 export function Result({ result, onRestart }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle')
+  const [saveState, setSaveState] = useState<
+    'idle' | 'saving' | 'saved' | 'failed' | 'copied'
+  >('idle')
   const secondsLeft = useCountdown(result.expiresAt)
   const expired = secondsLeft <= 0
 
@@ -52,6 +55,25 @@ export function Result({ result, onRestart }: Props) {
     setSaveState('saving')
     const outcome = await saveCard(canvasRef.current)
     setSaveState(outcome === 'failed' ? 'failed' : 'saved')
+  }
+
+  // 링크는 **결과가 아니라 서비스 첫 화면**을 가리킨다. 결과 링크를 뿌리면
+  // 20분 TTL 과 "링크만 알면 누구나 열람" 문제가 따라온다. 친구에게 필요한
+  // 것은 "너도 해봐"이지 내 결과 열람이 아니다.
+  //
+  // 도메인을 박아두지 않는 이유는 배포 주소가 바뀔 때 조용히 틀린 링크를
+  // 뿌리게 되기 때문이다.
+  async function handleShare() {
+    if (!canvasRef.current) return
+    setSaveState('saving')
+    const outcome = await shareCard(
+      canvasRef.current,
+      shareMessage(scores.friendFee),
+      window.location.origin,
+    )
+    if (outcome === 'failed') setSaveState('failed')
+    else if (outcome === 'copied') setSaveState('copied')
+    else setSaveState('saved')
   }
 
   const { scores, report, meta } = result
@@ -130,13 +152,30 @@ export function Result({ result, onRestart }: Props) {
       <canvas ref={canvasRef} className="share-canvas" aria-label="저장할 결과 카드" />
 
       <div className="actions">
-        <button type="button" className="cta" onClick={handleSave} disabled={saveState === 'saving'}>
-          {saveState === 'saving' ? '만드는 중…' : '결과 이미지 저장'}
+        <button
+          type="button"
+          className="cta"
+          onClick={handleShare}
+          disabled={saveState === 'saving'}
+        >
+          {saveState === 'saving' ? '준비하는 중…' : '친구에게 공유'}
+        </button>
+        <button
+          type="button"
+          className="ghost"
+          onClick={handleSave}
+          disabled={saveState === 'saving'}
+        >
+          결과 이미지 저장
         </button>
         <button type="button" className="ghost" onClick={onRestart}>
           다른 대화 분석하기
         </button>
       </div>
+
+      {saveState === 'copied' && (
+        <p className="notice">공유가 안 되는 기기라 링크를 복사했어요. 붙여넣어 보내주세요.</p>
+      )}
 
       {saveState === 'failed' && (
         <p className="problem">이미지를 만들지 못했어요. 화면을 캡처해 주세요.</p>

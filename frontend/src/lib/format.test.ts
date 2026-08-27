@@ -11,10 +11,11 @@ import {
   CONFIDENCE_NOTE,
   formatCountdown,
   formatDuration,
+  formatFee,
   formatPercent,
   formatSpan,
-  formatFee,
   formatWon,
+  shareMessage,
 } from './format'
 
 describe('formatWon', () => {
@@ -148,5 +149,27 @@ describe('formatFee', () => {
 
     expect(fee.direction).toBe('even')
     expect(fee.amount).toBe('0원')
+  })
+})
+
+describe('shareMessage', () => {
+  it('금액과 방향을 함께 담는다', () => {
+    // 금액만 보내면 받는 쪽인지 주는 쪽인지 알 수 없다
+    expect(shareMessage(-79000)).toContain('79,000원')
+    expect(shareMessage(-79000)).toContain('낼')
+    expect(shareMessage(79000)).toContain('받을')
+  })
+
+  it('받는 쪽과 주는 쪽의 문구가 다르다', () => {
+    expect(shareMessage(79000)).not.toBe(shareMessage(-79000))
+  })
+
+  it('비긴 사이도 말이 된다', () => {
+    expect(shareMessage(0)).toContain('비긴')
+  })
+
+  it('친구가 해볼 수 있게 권하는 말이 붙는다', () => {
+    // 결과만 던지면 링크를 왜 눌러야 하는지 알 수 없다
+    expect(shareMessage(-79000)).toMatch(/해볼래|해봐/)
   })
 })

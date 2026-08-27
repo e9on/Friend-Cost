@@ -215,3 +215,74 @@ export async function saveCard(
   URL.revokeObjectURL(url)
   return 'downloaded'
 }
+
+
+/**
+ * 친구에게 결과를 보낸다. 이미지 + 문구 + 링크.
+ *
+ * `saveCard` 와 나눠 둔 이유는 목적이 다르기 때문이다. 저장은 내가 가져가는
+ * 것이고 공유는 남에게 보내는 것이다. 공유에는 **링크가 반드시 붙어야** 친구가
+ * 직접 해볼 수 있다.
+ *
+ * 세 단계로 물러선다.
+ *
+ * 1. 파일까지 공유
+ * 2. 파일이 거절되면 문구와 링크만 공유 — 데스크톱 브라우저가 파일을 자주
+ *    거절한다. 여기서 포기하면 링크가 친구에게 가지 않는다
+ * 3. 공유 자체가 없으면 링크를 클립보드에 복사하고 이미지는 내려받는다
+ *
+ * 이미지를 만들지 못해도 링크 공유는 계속한다. 이미지가 없다고 공유를
+ * 포기하면 친구는 아무것도 받지 못한다.
+ */
+export async function shareCard(
+  canvas: HTMLCanvasElement,
+  text: string,
+  url: string,
+  filename = '친구비-결과.png',
+): Promise<'shared' | 'copied' | 'downloaded' | 'failed'> {
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, 'image/png'),
+  )
+  const file = blob ? new File([blob], filename, { type: 'image/png' }) : null
+
+  const attempts: ShareData[] = []
+  if (file) attempts.push({ files: [file], text, url })
+  attempts.push({ text, url })
+
+  for (const data of attempts) {
+    if (!navigator.canShare?.(data)) continue
+    try {
+      await navigator.share(data)
+      return 'shared'
+    } catch {
+      // 사용자가 취소했다. 다른 방식으로 다시 묻지 않고 저장으로 넘어간다
+      return blob ? await download(blob, filename) : 'failed'
+    }
+  }
+
+  // 공유를 아예 못 쓰는 환경. 링크만이라도 손에 쥐어준다
+  let copied = false
+  try {
+    await navigator.clipboard?.writeText(`${text}
+${url}`)
+    copied = true
+  } catch {
+    // 클립보드 권한이 없다. 이미지 저장으로 넘어간다
+  }
+
+  if (blob) await download(blob, filename)
+  if (copied) return 'copied'
+  return blob ? 'downloaded' : 'failed'
+}
+
+async function download(blob: Blob, filename: string): Promise<'downloaded'> {
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  URL.revokeObjectURL(url)
+  return 'downloaded'
+}

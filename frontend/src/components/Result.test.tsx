@@ -15,6 +15,7 @@ import type { AnalysisResult, Confidence } from '../api/types'
 const share = vi.hoisted(() => ({
   drawResultCard: vi.fn(),
   saveCard: vi.fn(),
+  shareCard: vi.fn(),
 }))
 
 vi.mock('../lib/shareImage', () => share)
@@ -183,5 +184,53 @@ describe('다시 하기', () => {
     await userEvent.click(screen.getByRole('button', { name: '다른 대화 분석하기' }))
 
     expect(onRestart).toHaveBeenCalledOnce()
+  })
+})
+
+describe('친구에게 공유', () => {
+  beforeEach(() => {
+    share.shareCard.mockReset().mockResolvedValue('shared')
+  })
+
+  it('공유 버튼을 누르면 이미지와 문구와 링크를 넘긴다', async () => {
+    render(<Result result={result()} onRestart={vi.fn()} />)
+
+    await userEvent.click(screen.getByRole('button', { name: /친구에게 공유/ }))
+
+    await waitFor(() => expect(share.shareCard).toHaveBeenCalledOnce())
+    const [, text, url] = share.shareCard.mock.calls[0]
+    expect(text).toContain('63,000원')
+    expect(url).toBe(window.location.origin)
+  })
+
+  it('링크는 결과가 아니라 서비스 첫 화면을 가리킨다', async () => {
+    // 결과 링크를 뿌리면 20분 TTL 과 열람 권한 문제가 따라온다.
+    // 친구에게 필요한 것은 "너도 해봐"이지 내 결과 열람이 아니다
+    render(<Result result={result()} onRestart={vi.fn()} />)
+
+    await userEvent.click(screen.getByRole('button', { name: /친구에게 공유/ }))
+
+    await waitFor(() => expect(share.shareCard).toHaveBeenCalledOnce())
+    expect(share.shareCard.mock.calls[0][2]).not.toContain('job-1')
+  })
+
+  it('공유를 못 써서 링크만 복사됐으면 그렇게 알린다', async () => {
+    share.shareCard.mockResolvedValue('copied')
+    render(<Result result={result()} onRestart={vi.fn()} />)
+
+    await userEvent.click(screen.getByRole('button', { name: /친구에게 공유/ }))
+
+    await waitFor(() => expect(screen.getByText(/링크를 복사/)).toBeInTheDocument())
+  })
+
+  it('공유에 실패하면 대안을 안내한다', async () => {
+    share.shareCard.mockResolvedValue('failed')
+    render(<Result result={result()} onRestart={vi.fn()} />)
+
+    await userEvent.click(screen.getByRole('button', { name: /친구에게 공유/ }))
+
+    await waitFor(() =>
+      expect(screen.getByText(/화면을 캡처해 주세요/)).toBeInTheDocument(),
+    )
   })
 })

@@ -10,7 +10,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { drawResultCard, saveCard } from './shareImage'
+import { drawResultCard, saveCard, shareCard } from './shareImage'
 import type { AnalysisResult } from '../api/types'
 
 interface FakeContext {
@@ -185,5 +185,78 @@ describe('saveCard', () => {
     vi.stubGlobal('navigator', {})
 
     expect(await saveCard(canvas)).toBe('failed')
+  })
+})
+
+describe('shareCard', () => {
+  let canvas: HTMLCanvasElement
+
+  beforeEach(() => {
+    canvas = document.createElement('canvas')
+    canvas.toBlob = vi.fn((callback: BlobCallback) => {
+      callback(new Blob(['png'], { type: 'image/png' }))
+    }) as never
+    vi.stubGlobal('URL', {
+      createObjectURL: vi.fn(() => 'blob:test'),
+      revokeObjectURL: vi.fn(),
+    })
+  })
+
+  it('이미지와 문구와 링크를 함께 넘긴다', async () => {
+    // 이미지만 넘기면 받는 쪽이 링크를 못 받는다
+    const share = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { canShare: vi.fn(() => true), share })
+
+    const outcome = await shareCard(canvas, '친구비 79,000원', 'https://example.test')
+
+    expect(outcome).toBe('shared')
+    const payload = share.mock.calls[0][0]
+    expect(payload.files).toHaveLength(1)
+    expect(payload.text).toContain('친구비')
+    expect(payload.url).toBe('https://example.test')
+  })
+
+  it('파일까지는 못 보내면 문구와 링크만이라도 공유한다', async () => {
+    // 데스크톱 브라우저는 파일 공유를 거절하는 경우가 많다.
+    // 여기서 포기하면 링크가 친구에게 가지 않는다
+    const share = vi.fn().mockResolvedValue(undefined)
+    const canShare = vi.fn((data: ShareData) => !data.files)
+    vi.stubGlobal('navigator', { canShare, share })
+
+    const outcome = await shareCard(canvas, '친구비 79,000원', 'https://example.test')
+
+    expect(outcome).toBe('shared')
+    expect(share.mock.calls[0][0].files).toBeUndefined()
+    expect(share.mock.calls[0][0].url).toBe('https://example.test')
+  })
+
+  it('공유를 아예 못 쓰면 링크를 복사하고 이미지를 내려받는다', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { clipboard: { writeText } })
+
+    const outcome = await shareCard(canvas, '친구비 79,000원', 'https://example.test')
+
+    expect(outcome).toBe('copied')
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringContaining('https://example.test'),
+    )
+  })
+
+  it('사용자가 공유를 취소하면 저장으로 넘어간다', async () => {
+    vi.stubGlobal('navigator', {
+      canShare: vi.fn(() => true),
+      share: vi.fn().mockRejectedValue(new Error('cancelled')),
+    })
+
+    expect(await shareCard(canvas, '문구', 'https://example.test')).toBe('downloaded')
+  })
+
+  it('이미지를 만들지 못해도 링크는 공유한다', async () => {
+    // 이미지가 없다고 공유 자체를 포기하면 친구는 아무것도 못 받는다
+    canvas.toBlob = vi.fn((callback: BlobCallback) => callback(null)) as never
+    const share = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { canShare: vi.fn((d: ShareData) => !d.files), share })
+
+    expect(await shareCard(canvas, '문구', 'https://example.test')).toBe('shared')
   })
 })

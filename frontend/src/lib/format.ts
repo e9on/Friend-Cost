@@ -48,6 +48,24 @@ export function formatFee(value: number): FormattedFee {
   return { direction: 'even', label: '서로 비긴 사이입니다', amount: formatWon(0) }
 }
 
+/**
+ * 친구에게 보낼 한 줄.
+ *
+ * 이미지만 보내면 상대는 화면 밖에서 무슨 말인지 모른다. 카카오톡 미리보기에
+ * 뜨는 것은 이 문구이므로, 여기에 금액과 방향이 다 들어 있어야 한다.
+ *
+ * 권하는 말을 붙이는 이유는 링크를 왜 눌러야 하는지 알려주기 위해서다.
+ * 결과만 던지면 자랑으로만 읽히고 링크는 눌리지 않는다.
+ */
+export function shareMessage(friendFee: number): string {
+  const fee = formatFee(friendFee)
+  if (fee.direction === 'even') {
+    return `친구비 계산해보니 딱 비긴 사이래. 너도 해볼래?`
+  }
+  const who = fee.direction === 'receive' ? '내가 받을' : '내가 낼'
+  return `친구비 계산해보니 ${who} 돈이 ${fee.amount}래. 너도 해볼래?`
+}
+
 export function formatPercent(ratio: number): string {
   return `${Math.round(ratio * 100)}%`
 }
