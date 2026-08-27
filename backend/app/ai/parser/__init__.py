@@ -11,6 +11,7 @@ import re
 from dataclasses import dataclass
 from datetime import date, timedelta
 from collections import Counter
+from difflib import SequenceMatcher
 from typing import Final, Sequence
 
 from app.ai.parser.normalize import is_system_message, normalize_text
@@ -45,6 +46,20 @@ MERGE_LINE_FACTOR: Final = 0.4
 MERGE_ALIGN_RATIO: Final = 0.03  # 같은 말풍선으로 볼 정렬 오차 (이미지 폭 대비)
 NAME_LABEL_MAX_LEN: Final = 12
 NAME_LABEL_GAP_FACTOR: Final = 1.2
+# 이름 라벨이 자기 말풍선보다 왼쪽으로 튀어나온 정도 (이미지 폭 대비).
+#
+# 이름은 프로필 사진 옆 여백선에 맞고 말풍선은 그보다 안쪽에서 시작한다.
+# 본문은 말풍선 안이므로 더 밀린다. 그래서 이름은 왼쪽으로 튀어나오고,
+# **본문끼리는 x 가 같다.** 짧은 메시지 다음에 긴 메시지가 와도 마찬가지다.
+#
+# 실측(폭 720 실제 캡처 / 폭 1080 합성 3벌): 진짜 이름은 폭의 1.9~2.9%,
+# 이름이 아닌 후보는 0.09% 이하. 0.01 은 그 사이다.
+#
+# 픽셀이 아니라 비율인 이유는 캡처 해상도를 우리가 정할 수 없기 때문이다.
+#
+# **순위가 아니라 자격 요건이다.** 튀어나오지 않은 블록은 아무리 반복돼도
+# 이름이 아니다. `OCR-Parser-명세.md` 7.4.
+NAME_LABEL_INDENT_RATIO: Final = 0.01
 # 같은 텍스트가 이만큼 반복되어야 발신자 이름으로 본다.
 #
 # **높이로는 가를 수 없다.** 실측에서 1:1 오탐의 높이비(0.61~0.98)와 진짜
@@ -54,6 +69,19 @@ NAME_LABEL_GAP_FACTOR: Final = 1.2
 # 발신자 이름은 그 사람이 말할 때마다 다시 붙으므로 반복된다. 실측에서
 # 1:1 의 최다 반복은 2회, 단체방은 4~5회였다. 3이 그 사이다.
 NAME_LABEL_MIN_REPEATS: Final = 3
+# 이만큼 닮은 이름 라벨은 같은 사람으로 본다.
+#
+# OCR 은 같은 라벨을 매번 같게 읽지 않는다. 실측에서 닉네임 하나가
+# `공어고글를렁을` `어고글를렁을` `궁오고글를바을` 처럼 갈라졌고, 그중 둘이
+# 반복 기준을 넘겨 **한 사람이 두 사람이 됐다.** 정상 1:1 대화가 거부됐다.
+#
+# 신뢰도로는 걸러지지 않는다. 저 블록들의 신뢰도는 0.52~0.74 로 전부
+# MIN_BLOCK_CONFIDENCE 를 통과했다. 글자를 틀리게 읽어도 OCR 은 확신한다.
+#
+# 실측: 합쳐야 하는 쌍 0.923, 합치면 안 되는 쌍의 최댓값 0.750
+# (`김민지영`/`김민지수`). 그 사이에서 낮은 쪽으로 잡은 것은 거부가 미탐보다
+# 나쁘기 때문이다. `OCR-Parser-명세.md` 7.3.
+NAME_LABEL_SIMILARITY: Final = 0.8
 # 겹침을 찾을 때 살펴보는 메시지 수.
 #
 # 사용자가 화면을 얼마나 겹쳐 찍을지는 우리가 정할 수 없다. 창보다 많이
@@ -107,36 +135,75 @@ def _name_candidates(blocks: Sequence[OcrBlock], page_width: int) -> list[str]:
     전체를 합쳐 판정한다.
     """
     left_blocks = [b for b in blocks if classify_block(b, page_width) is BlockRole.PEER]
+    indent = page_width * NAME_LABEL_INDENT_RATIO
     found: list[str] = []
 
     for candidate in left_blocks:
         text = candidate.text.strip()
         if len(text) > NAME_LABEL_MAX_LEN or _is_time_label(candidate.text):
             continue
-        below = any(
-            other is not candidate
+        # 이름표를 붙인 말풍선. 바로 아래에 있고 후보보다 크다
+        labelled = [
+            other
+            for other in left_blocks
+            if other is not candidate
             and 0 < other.box.y - candidate.box.bottom < candidate.box.h * NAME_LABEL_GAP_FACTOR
             and other.box.h > candidate.box.h
-            for other in left_blocks
-        )
-        if below:
+        ]
+        if not labelled:
+            continue
+        # 그 말풍선보다 왼쪽으로 튀어나와야 이름이다. 본문끼리는 x 가 같다
+        if all(other.box.x - candidate.box.x >= indent for other in labelled):
             found.append(text)
 
     return found
 
 
+def _distinct_names(names: Sequence[str]) -> int:
+    """오인식으로 갈라진 같은 이름을 묶고, 남은 이름 수를 센다.
+
+    단일 연결이다. 한 쌍이라도 임계값을 넘으면 같은 이름으로 본다. 한 라벨의
+    변형들은 서로 조금씩 다르게 갈라지므로, 모든 변형이 서로 닮기를 요구하면
+    묶이지 않는다.
+
+    후보 순서에 결과가 달라지면 같은 대화가 어떤 날은 거부되고 어떤 날은
+    통과한다. 그래서 순서와 무관한 합집합-찾기로 묶는다.
+    """
+    parent = list(range(len(names)))
+
+    def find(index: int) -> int:
+        while parent[index] != index:
+            parent[index] = parent[parent[index]]
+            index = parent[index]
+        return index
+
+    for i in range(len(names)):
+        for j in range(i + 1, len(names)):
+            if SequenceMatcher(None, names[i], names[j]).ratio() >= NAME_LABEL_SIMILARITY:
+                parent[find(i)] = find(j)
+
+    return len({find(i) for i in range(len(names))})
+
+
 def _detect_group_chat(candidates: Sequence[str]) -> None:
-    """반복되는 이름 라벨이 둘 이상이면 단체방이다.
+    """서로 다른 이름 라벨이 둘 이상이면 단체방이다.
+
+    **1:1 에도 이름 라벨은 붙는다.** 그래서 라벨이 있느냐가 아니라 몇 종류냐로
+    가른다.
 
     한 번 나타난 것을 이름으로 치면 **평범한 짧은 메시지가 걸린다.**
     실측에서 "나 지금 회사야"가 발신자 이름으로 오인돼 정상 1:1 대화가
     거부됐다. 사용자에게는 서비스 실패로 보인다.
 
+    반복 횟수만으로도 부족하다. OCR 이 같은 닉네임을 매번 다르게 읽으면 한
+    사람이 여러 사람이 된다. 그래서 세기 전에 닮은 것끼리 묶는다.
+
     `OCR-Parser-명세.md` 7장.
     """
     counts = Counter(candidates)
-    names = {text for text, count in counts.items() if count >= NAME_LABEL_MIN_REPEATS}
-    if len(names) >= 2:
+    # 정렬은 결과를 순서에 의존하지 않게 하려는 것이다
+    names = sorted(text for text, count in counts.items() if count >= NAME_LABEL_MIN_REPEATS)
+    if _distinct_names(names) >= 2:
         raise AppError(ErrorCode.GROUP_CHAT_DETECTED)
 
 

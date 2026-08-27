@@ -5,6 +5,8 @@
 
 - 내 말풍선은 오른쪽 끝에 붙는다
 - 상대 말풍선은 프로필 사진 자리를 비우고 왼쪽에 붙는다
+- **본문은 말풍선 안쪽 여백만큼 밀리고, 발신자 이름은 말풍선 바깥 기준선에 붙는다.**
+  이 차이가 단체방 감지의 근거이므로(`OCR-Parser-명세.md` 7.4) 지어내지 않고 맞춘다
 - 시각 라벨은 말풍선 안쪽(내 것은 왼쪽, 상대 것은 오른쪽)에 붙는다
 - 날짜 구분선과 시스템 안내는 가운데 정렬된다
 
@@ -24,6 +26,9 @@ TIME_WIDTH = 96
 TIME_HEIGHT = 28
 CHAR_WIDTH = 26
 MAX_BUBBLE = 700
+# 말풍선 안쪽 여백. 본문 글자는 말풍선 모서리에서 이만큼 안으로 들어간다.
+# 발신자 이름은 말풍선 바깥 기준선에 붙으므로 본문보다 왼쪽으로 튀어나온다
+BUBBLE_PAD_X = 24
 
 
 def _bubble_width(text: str) -> int:
@@ -61,7 +66,7 @@ class ScreenBuilder:
     def peer(self, text: str, at: str | None = None) -> "ScreenBuilder":
         """상대 메시지. 프로필 자리를 비우고 왼쪽에 붙는다."""
         w = _bubble_width(text)
-        x = EDGE + PROFILE_WIDTH
+        x = EDGE + PROFILE_WIDTH + BUBBLE_PAD_X
         self._add(text, x, w, LINE_HEIGHT)
         if at:
             self._add(at, x + w + 10, TIME_WIDTH, TIME_HEIGHT, self._y + 16)
@@ -76,7 +81,10 @@ class ScreenBuilder:
         return self
 
     def peer_name(self, name: str) -> "ScreenBuilder":
-        """단체방에서 말풍선 위에 붙는 발신자 이름."""
+        """말풍선 위에 붙는 발신자 이름. **1:1 에도 붙는다.**
+
+        말풍선 **바깥** 기준선에 맞으므로 본문보다 BUBBLE_PAD_X 만큼 왼쪽이다.
+        """
         w = len(name) * 20
         self._add(name, EDGE + PROFILE_WIDTH, w, 26)
         self._y += 26 + 6
