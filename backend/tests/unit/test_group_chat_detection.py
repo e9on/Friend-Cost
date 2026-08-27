@@ -120,7 +120,7 @@ class TestOcrMisreadsOfOneNameAreNotTwoPeople:
         counts: Counter = Counter()
         for page in self._screens():
             blocks = [b for b in page.blocks if b.confidence >= MIN_BLOCK_CONFIDENCE]
-            counts.update(_name_candidates(blocks, page.width))
+            counts.update(b.text.strip() for b in _name_candidates(blocks, page.width))
 
         for variant in self.VARIANTS:
             assert counts[variant] >= NAME_LABEL_MIN_REPEATS, (
@@ -197,7 +197,9 @@ class TestIndentIsAQualifyingCondition:
             ]
         )
 
-        assert _name_candidates(page.blocks, page.width) == ["김민지"]
+        found = _name_candidates(page.blocks, page.width)
+
+        assert [b.text for b in found] == ["김민지"]
 
     def test_튀어나오지_않으면_아무리_반복해도_이름이_아니다(self):
         """자격 요건은 순위가 아니다. 반복으로 뒤집히지 않는다."""
@@ -215,3 +217,84 @@ class TestIndentIsAQualifyingCondition:
         convo = parse([self._page(rows)], min_messages=1)
 
         assert convo.meta.message_count > 0
+
+
+class TestNameLabelsAreDropped:
+    """이름 라벨은 메시지가 아니다. 감지에 쓴 뒤 버린다.
+
+    2026-08-27 실측에서 캡처 5장의 메시지 120개 중 21개가 이름 라벨이었다.
+    전체의 17.5%가 상대방이 보낸 적 없는 메시지로 세어졌고, 연락 균형도와
+    기여 격차가 그만큼 상대방 쪽으로 기울었다.
+
+    지표만의 문제가 아니다. 라벨이 메시지에 섞여 LLM 으로 전송된다. 닉네임은
+    상대방을 특정할 수 있는 정보이고, 처리방침의 처리 항목에 없다. 고지하지
+    않은 항목을 국외로 보내는 셈이다.
+
+    `OCR-Parser-명세.md` 7.1.
+    """
+
+    WIDTH = 720
+    LABEL_X = 99
+    TEXT_X = 118
+
+    def _page(self, rows, image_index=0):
+        return OcrPage(
+            image_index=image_index,
+            width=self.WIDTH,
+            height=4000,
+            blocks=tuple(
+                OcrBlock(
+                    text=text,
+                    box=BoundingBox(x=x, y=y, w=w, h=h),
+                    confidence=0.7,
+                )
+                for x, y, w, h, text in rows
+            ),
+        )
+
+    def _one_to_one_with_label(self):
+        """이름 라벨이 붙은 1:1 화면. 라벨 6개, 진짜 메시지 12개."""
+        rows = []
+        y = 100
+        for turn in range(6):
+            rows.append((self.LABEL_X, y, 165, 31, "하트를든라이언"))
+            rows.append((self.TEXT_X, y + 36, 400, 47, f"상대 메시지 {turn}"))
+            rows.append((520, y + 120, 160, 47, f"내 메시지 {turn}"))
+            y += 220
+        return self._page(rows)
+
+    def test_이름_라벨이_메시지로_세어지지_않는다(self):
+        convo = parse([self._one_to_one_with_label()], min_messages=1)
+
+        texts = [m.text for m in convo.messages]
+        assert not any("라이언" in t for t in texts), f"라벨이 메시지에 남았다: {texts}"
+
+    def test_진짜_메시지는_그대로_남는다(self):
+        convo = parse([self._one_to_one_with_label()], min_messages=1)
+
+        assert convo.meta.message_count == 12
+
+    def test_버린_라벨은_droppedCount_에_잡힌다(self):
+        convo = parse([self._one_to_one_with_label()], min_messages=1)
+
+        assert convo.meta.dropped_count >= 6
+
+    def test_아래_말풍선이_없는_라벨도_버린다(self):
+        """화면 끝에 걸린 라벨은 후보 조건을 못 채운다.
+
+        실측에서 라벨 32개 중 후보로 잡힌 것은 21개뿐이었다. 나머지를 두면
+        지표 왜곡이 절반만 고쳐진다.
+        """
+        rows = []
+        y = 100
+        for turn in range(6):
+            rows.append((self.LABEL_X, y, 165, 31, "하트를든라이언"))
+            rows.append((self.TEXT_X, y + 36, 400, 47, f"상대 메시지 {turn}"))
+            rows.append((520, y + 120, 160, 47, f"내 메시지 {turn}"))
+            y += 220
+        # 아래에 말풍선이 없는 라벨 하나를 화면 끝에 둔다
+        rows.append((self.LABEL_X, y, 165, 31, "하트를든라이언"))
+
+        convo = parse([self._page(rows)], min_messages=1)
+
+        assert not any("라이언" in m.text for m in convo.messages)

@@ -127,7 +127,7 @@ def _is_time_label(text: str) -> bool:
     return bool(_TIME_LABEL.match(text.strip()))
 
 
-def _name_candidates(blocks: Sequence[OcrBlock], page_width: int) -> list[str]:
+def _name_candidates(blocks: Sequence[OcrBlock], page_width: int) -> list[OcrBlock]:
     """왼쪽 말풍선 위에 붙은 발신자 이름 후보를 모은다.
 
     **판정은 여기서 하지 않는다.** 이름은 여러 이미지에 흩어져 나타나므로
@@ -136,7 +136,7 @@ def _name_candidates(blocks: Sequence[OcrBlock], page_width: int) -> list[str]:
     """
     left_blocks = [b for b in blocks if classify_block(b, page_width) is BlockRole.PEER]
     indent = page_width * NAME_LABEL_INDENT_RATIO
-    found: list[str] = []
+    found: list[OcrBlock] = []
 
     for candidate in left_blocks:
         text = candidate.text.strip()
@@ -154,7 +154,7 @@ def _name_candidates(blocks: Sequence[OcrBlock], page_width: int) -> list[str]:
             continue
         # 그 말풍선보다 왼쪽으로 튀어나와야 이름이다. 본문끼리는 x 가 같다
         if all(other.box.x - candidate.box.x >= indent for other in labelled):
-            found.append(text)
+            found.append(candidate)
 
     return found
 
@@ -185,7 +185,40 @@ def _distinct_names(names: Sequence[str]) -> int:
     return len({find(i) for i in range(len(names))})
 
 
-def _detect_group_chat(candidates: Sequence[str]) -> None:
+def _with_same_column(
+    labels: Sequence[OcrBlock], blocks: Sequence[OcrBlock], page_width: int
+) -> set[int]:
+    """확인된 라벨과 같은 x 에 선 짧은 왼쪽 블록까지 함께 모은다.
+
+    이름 라벨은 말풍선 바깥 기준선에 붙으므로 화면 안에서 늘 같은 x 다.
+    본문은 말풍선 안쪽이라 그보다 오른쪽이다(7.5). 그래서 x 하나로 갈린다.
+
+    유사도로 찾지 않는 이유는 **글자가 흔들리기 때문**이다. 실측에서 같은
+    라벨의 오인식끼리 유사도가 0.769 까지 벌어져 임계값을 넘지 못했다.
+    좌표는 그렇게 흔들리지 않았다. 같은 라벨의 x 편차는 3px 였다.
+    """
+    found = {id(b) for b in labels}
+    if not labels:
+        return found
+
+    columns = [b.box.x for b in labels]
+    tolerance = page_width * NAME_LABEL_INDENT_RATIO
+
+    for block in blocks:
+        if id(block) in found:
+            continue
+        text = block.text.strip()
+        if not text or len(text) > NAME_LABEL_MAX_LEN:
+            continue
+        if classify_block(block, page_width) is not BlockRole.PEER:
+            continue
+        if any(abs(block.box.x - x) <= tolerance for x in columns):
+            found.add(id(block))
+
+    return found
+
+
+def _detect_group_chat(candidates: Sequence[str]) -> list[str]:
     """서로 다른 이름 라벨이 둘 이상이면 단체방이다.
 
     **1:1 에도 이름 라벨은 붙는다.** 그래서 라벨이 있느냐가 아니라 몇 종류냐로
@@ -205,6 +238,7 @@ def _detect_group_chat(candidates: Sequence[str]) -> None:
     names = sorted(text for text, count in counts.items() if count >= NAME_LABEL_MIN_REPEATS)
     if _distinct_names(names) >= 2:
         raise AppError(ErrorCode.GROUP_CHAT_DETECTED)
+    return names
 
 
 def _merge_blocks(blocks: list[OcrBlock], role: BlockRole, page_width: int) -> list[list[OcrBlock]]:
@@ -239,7 +273,22 @@ def _collect_raw(page: OcrPage) -> tuple[list[_Raw], int, list[str]]:
 
     time_labels = [b for b in usable if _is_time_label(b.text)]
     others = [b for b in usable if not _is_time_label(b.text)]
-    name_candidates = _name_candidates(others, page.width)
+
+    # 이름 라벨은 메시지가 아니다. 감지에 쓴 뒤 본문에서 뺀다.
+    # 두면 상대가 보낸 적 없는 메시지로 세어져 연락 균형도와 기여 격차가
+    # 틀어지고, 닉네임이 그대로 LLM 으로 전송된다. 명세 7.1
+    label_blocks = _name_candidates(others, page.width)
+    name_candidates = [b.text.strip() for b in label_blocks]
+
+    # 아래에 말풍선이 없는 라벨은 후보 조건을 못 채운다. 화면 끝에 걸린
+    # 것들이다. 실측에서 라벨 32개 중 후보로 잡힌 것은 21개뿐이었다.
+    #
+    # 남은 것은 **같은 x** 로 찾는다. 라벨은 말풍선 바깥 기준선에 서므로 늘
+    # 같은 자리다. 텍스트 유사도로 찾으려 했더니 같은 라벨의 오인식끼리도
+    # 0.769 까지 벌어져 놓쳤다. 글자는 흔들려도 좌표는 흔들리지 않는다
+    labels = _with_same_column(label_blocks, others, page.width)
+    others = [b for b in others if id(b) not in labels]
+    dropped += len(labels)
 
     markers: list[_Raw] = []
     body_blocks: dict[BlockRole, list[OcrBlock]] = {BlockRole.ME: [], BlockRole.PEER: []}
