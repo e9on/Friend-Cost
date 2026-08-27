@@ -523,9 +523,13 @@ body {
   padding: 16px;
 }
 
+/* 칸 수를 박아두지 않는다.
+ *
+ * grid-template-columns: repeat(3, 1fr) 이었는데 신뢰도를 빼자 두 항목만 남아
+ * 오른쪽 한 칸이 비고 내용이 왼쪽으로 몰렸다. flex 로 두면 항목 수가 몇이든
+ * 남은 폭을 고르게 나눈다. auto-fit 은 최소 폭이 정해져야 하므로 쓰지 않는다. */
 .meta {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
   gap: 8px;
   margin: 0;
   padding: 14px 0 0;
@@ -533,6 +537,7 @@ body {
 }
 
 .meta div {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 4px;
