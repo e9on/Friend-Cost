@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+import { legalAlias } from './legal.alias.ts'
+
 /**
  * 개발 중에는 백엔드를 프록시로 붙인다.
  * 배포는 정적 호스팅 + 별도 백엔드이므로 VITE_API_BASE 로 절대 주소를 준다.
@@ -13,7 +15,11 @@ const BACKEND_PORT = process.env.BACKEND_PORT ?? '8000'
 
 export default defineConfig({
   plugins: [react()],
+  // 법률 문서는 `legal/` 한 곳에만 둔다. 앱 안으로 복사하면 두 벌이 되고
+  // 한쪽만 고쳐진다. 저장소 밖이 아니라 프론트 밖이라 접근을 열어준다
+  resolve: { alias: legalAlias },
   server: {
+    fs: { allow: ['..'] },
     port: 5173,
     proxy: {
       '/v1': {

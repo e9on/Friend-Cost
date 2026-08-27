@@ -647,3 +647,230 @@ body {
 .legal-pending {
   color: var(--muted);
 }
+
+/* --- 모달 (동의 게이트, 약관 전문) --- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(6, 6, 10, 0.78);
+}
+
+.modal {
+  width: 100%;
+  max-width: 520px;
+  max-height: 88vh;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 22px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.consent-lead {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--muted-strong);
+}
+
+/* 링크만 걸면 알렸다고 보기 어렵다. 요약을 모달 안에 직접 둔다 */
+.consent-summary {
+  margin: 0;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.consent-summary div {
+  display: flex;
+  gap: 10px;
+}
+
+.consent-summary dt {
+  flex: 0 0 76px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.consent-summary dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.consent-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.consent-items li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.consent-items label {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.consent-items input {
+  margin-top: 2px;
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.consent-required {
+  font-style: normal;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.linkish {
+  flex: 0 0 auto;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--muted-strong);
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* 거부권 고지는 의무다. 흐리게 두더라도 지우지 않는다 */
+.consent-refusal {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.consent-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modal-legal {
+  max-width: 640px;
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modal-head h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.modal-close {
+  width: auto;
+  padding: 8px 14px;
+  font-size: 14px;
+}
+
+.legal-body {
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--muted-strong);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.legal-body h2,
+.legal-body h3,
+.legal-body h4 {
+  margin: 10px 0 0;
+  color: var(--text);
+}
+
+.legal-body h2 { font-size: 18px; }
+.legal-body h3 { font-size: 16px; }
+.legal-body h4 { font-size: 15px; }
+
+.legal-body p,
+.legal-body ul,
+.legal-body ol {
+  margin: 0;
+  padding-left: 0;
+}
+
+.legal-body ul,
+.legal-body ol {
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.legal-body strong {
+  color: var(--text);
+}
+
+.legal-body blockquote {
+  margin: 0;
+  padding: 12px 14px;
+  border-left: 3px solid var(--accent);
+  background: var(--surface-2);
+  border-radius: 0 12px 12px 0;
+}
+
+/* 표는 좁은 화면에서 넘칠 수 있다. 본문이 아니라 표만 가로로 스크롤한다 */
+.legal-table {
+  overflow-x: auto;
+}
+
+.legal-table table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+
+.legal-table th,
+.legal-table td {
+  border: 1px solid var(--line);
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.legal-table th {
+  background: var(--surface-2);
+  color: var(--text);
+}

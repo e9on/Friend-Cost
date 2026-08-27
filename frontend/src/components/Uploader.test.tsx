@@ -135,12 +135,13 @@ describe('법적 고지', () => {
     expect(screen.getByRole('button', { name: '분석 시작' })).toBeDisabled()
   })
 
-  it('약관 링크 자리를 비워두지 않는다', () => {
-    // 링크가 준비되기 전에는 준비 중임을 드러낸다. 조용히 비워두면
-    // 공개 직전에 잊어버린다
+  it('약관과 처리방침을 열 수 있다', () => {
+    // 문서를 만들어 두는 것으로 끝나지 않는다. 사용자가 보는 자리에 있어야
+    // 한다. `운영-보안-법적고지-명세.md` 5장
     renderUploader()
 
-    expect(screen.getByText(/이용약관과 개인정보 처리방침/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '이용약관' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '개인정보 처리방침' })).toBeInTheDocument()
   })
 })
 
