@@ -313,9 +313,13 @@ def _restore_timestamps(raws: list[_Raw]) -> None:
     current = VIRTUAL_EPOCH_DATE
     seen_anchor = False
     previous_minutes: int | None = None
+    before_anchor: list[_Raw] = []
+    first_anchor: date | None = None
 
     for raw in raws:
         if raw.is_anchor:
+            if not seen_anchor:
+                first_anchor = raw.date_anchor
             current = raw.date_anchor
             seen_anchor = True
             previous_minutes = None  # 날짜가 바뀌었으니 시각 역행 판단을 새로 시작한다
@@ -332,6 +336,38 @@ def _restore_timestamps(raws: list[_Raw]) -> None:
         previous_minutes = minutes
         raw.epoch = to_epoch(current, hour, minute)
         raw.anchored = seen_anchor
+        if not seen_anchor:
+            before_anchor.append(raw)
+
+    _rebase_before_anchor(before_anchor, first_anchor)
+
+
+def _rebase_before_anchor(raws: list[_Raw], first_anchor: "date | None") -> None:
+    """첫 앵커 이전 메시지를 앵커 날짜에서 거꾸로 이어 붙인다.
+
+    스크롤 캡처에서는 위로 올려 찍은 화면에 날짜 구분선이 없다. 그 메시지들을
+    가상 기준일에 두고 뒤쪽만 실제 날짜에 두면 **한 대화 안에 26년 간격이
+    생긴다.** 실측에서 캡처 5장 중 앞 3장에 구분선이 없어 대화 기간이 318개월로
+    나왔다.
+
+    묶음 안의 간격은 손대지 않고 통째로 옮기는 이유는, 답장 속도와 세션 분할이
+    쓰는 값이 그 안쪽 간격이기 때문이다. 옮기면 기간만 제자리를 찾고 지표는
+    그대로다.
+
+    앵커 날짜가 아니라 **그 전날**에 붙이는 이유는 날짜 구분선이 그 날짜의
+    시작을 뜻하기 때문이다. 구분선 바로 앞 메시지는 그보다 앞선 날짜다.
+
+    이 값은 추정이다. 사용자가 한 달을 건너뛰어 캡처했다면 실제 간격은 더 크다.
+    `OCR-Parser-명세.md` 5.5.
+    """
+    if not raws or first_anchor is None:
+        return
+
+    last = raws[-1]
+    hour, minute = last.clock
+    shift = to_epoch(first_anchor - timedelta(days=1), hour, minute) - last.epoch
+    for raw in raws:
+        raw.epoch += shift
 
 
 def _dedupe(pages_raws: list[list[_Raw]]) -> tuple[list[_Raw], int]:

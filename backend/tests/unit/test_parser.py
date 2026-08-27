@@ -242,6 +242,58 @@ class TestCrossImageDedupe:
         assert [m.text for m in convo.messages].count("ㅇㅇ") == 2
 
 
+class TestAnchorAppearsMidConversation:
+    """날짜 구분선이 뒤쪽 화면에만 있는 경우.
+
+    스크롤 캡처에서 흔하다. 위로 올려 찍은 화면에는 구분선이 없다.
+    앞쪽을 가상 기준일에 두고 뒤쪽을 실제 날짜에 두면 한 대화 안에 26년
+    간격이 생긴다. 2026-08-27 실측에서 `spanSeconds` 가 318개월로 나왔다.
+    `OCR-Parser-명세.md` 5.5.
+    """
+
+    def _pages(self):
+        first = (
+            ScreenBuilder(image_index=0)
+            .me("구분선 없는 화면", at="오전 9:00")
+            .peer("응", at="오전 9:05")
+            .build()
+        )
+        second = (
+            ScreenBuilder(image_index=1)
+            .center("2026년 7월 14일 화요일")
+            .me("구분선 뒤", at="오전 10:00")
+            .peer("그래", at="오전 10:05")
+            .build()
+        )
+        return [first, second]
+
+    def test_기간이_대화_길이에_맞는다(self):
+        convo = parse(self._pages(), min_messages=1)
+
+        # 앞 묶음 마지막(전날 09:05)부터 뒤 첫 메시지(당일 10:00)까지가 최대치다
+        assert convo.meta.span_seconds is not None
+        assert convo.meta.span_seconds < 3 * 86400, (
+            f"기간이 {convo.meta.span_seconds / 86400:.1f}일이다"
+        )
+
+    def test_시간이_거꾸로_흐르지_않는다(self):
+        convo = parse(self._pages(), min_messages=1)
+
+        stamps = [m.sent_at for m in convo.messages if m.sent_at is not None]
+        assert all(a <= b for a, b in zip(stamps, stamps[1:]))
+
+    def test_앞_묶음_안의_간격은_그대로_보존된다(self):
+        convo = parse(self._pages(), min_messages=1)
+
+        stamps = [m.sent_at for m in convo.messages if m.sent_at is not None]
+        assert stamps[1] - stamps[0] == 5 * 60
+
+    def test_앞_묶음은_날짜를_지어낸_것이므로_inferred_다(self):
+        convo = parse(self._pages(), min_messages=1)
+
+        assert convo.messages[0].time_source is TimeSource.INFERRED
+
+
 class TestAnchorCarriesAcrossImages:
     def test_date_anchor_from_the_first_image_applies_to_later_ones(self):
         """스크롤 캡처는 하나의 대화다.
