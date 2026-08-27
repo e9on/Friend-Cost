@@ -198,3 +198,24 @@ describe('지원 범위 안내', () => {
     expect(screen.getByText(/단체(방| 대화)/)).toBeInTheDocument()
   })
 })
+
+describe('캡처에 남는 민감한 것', () => {
+  it('우리가 못 지우는 것만 부탁한다', () => {
+    // "개인정보를 가려주세요" 같은 넓은 부탁은 지켜지지 않는다.
+    // 재미로 써보는 서비스에서 캡처를 편집할 사람은 거의 없다
+    render(<Uploader onStart={vi.fn()} busy={false} />)
+
+    const notice = screen.getByText(/가리고 올려주세요/)
+    for (const word of ['전화번호', '주소', '계좌번호', '사진']) {
+      expect(notice.textContent).toContain(word)
+    }
+  })
+
+  it('이름은 자동으로 지운다고 밝힌다', () => {
+    // 부탁 대신 보장할 수 있는 것은 부탁하지 않는다.
+    // 무엇이 자동이고 무엇이 사용자 몫인지 갈라준다
+    render(<Uploader onStart={vi.fn()} busy={false} />)
+
+    expect(screen.getByText(/이름은 저희가 자동으로 지웁니다/)).toBeInTheDocument()
+  })
+})
