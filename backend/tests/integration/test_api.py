@@ -124,7 +124,6 @@ class TestResult:
             "firstContactRatio",
             "avgReplySeconds",
             "contactBalance",
-            "confidence",
         }
         assert body["report"]["disclaimer"]
 

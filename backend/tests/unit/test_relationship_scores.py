@@ -8,7 +8,6 @@ import pytest
 
 from app.algorithm.calculator.relationship import (
     breakup_risk,
-    confidence_of,
     friend_fee,
     intimacy,
     money_risk_score,
@@ -16,7 +15,6 @@ from app.algorithm.calculator.relationship import (
     reply_delay_score,
 )
 from app.domain.model.conversation import ConversationMeta
-from app.domain.value_object.enums import Confidence
 from tests.builders import analysis
 
 SPEC_BALANCE = 74
@@ -138,23 +136,3 @@ class TestFriendFee:
 
     def test_rounds_to_thousand_won(self):
         assert friend_fee(0.37) % 1_000 == 0
-
-
-class TestConfidence:
-    def test_worked_example_from_spec(self):
-        assert confidence_of(meta(184, 0.91), session_count=19) is Confidence.HIGH
-
-    def test_enough_messages_but_poor_time_coverage_is_medium(self):
-        assert confidence_of(meta(184, 0.3), session_count=19) is Confidence.MEDIUM
-
-    def test_few_messages_but_good_time_coverage_is_medium(self):
-        assert confidence_of(meta(20, 0.91), session_count=19) is Confidence.MEDIUM
-
-    def test_neither_is_low(self):
-        assert confidence_of(meta(20, 0.3), session_count=19) is Confidence.LOW
-
-    def test_sampling_downgrades_one_step(self):
-        assert confidence_of(meta(184, 0.91, sampled=True), session_count=19) is Confidence.MEDIUM
-
-    def test_too_few_sessions_forces_low(self):
-        assert confidence_of(meta(184, 0.91), session_count=2) is Confidence.LOW

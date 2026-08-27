@@ -137,7 +137,6 @@ class AnalysisPipeline:
             dropped=convo.meta.dropped_count,
             sampled=convo.meta.sampled,
             coverage=round(convo.meta.time_coverage, 2),
-            confidence=scores.confidence.value,
         )
 
         return AnalysisResult(

@@ -12,7 +12,7 @@ from app.domain.model.job import AnalysisJob, IllegalTransition
 from app.domain.model.report import DISCLAIMER, ReportData, ReportSection
 from app.domain.model.result import AnalysisResult, ResultMeta
 from app.domain.model.score import RelationshipScoreData, ReplySeconds
-from app.domain.value_object.enums import Confidence, JobStage, JobStatus
+from app.domain.value_object.enums import JobStage, JobStatus
 
 
 def job() -> AnalysisJob:
@@ -29,7 +29,6 @@ def result() -> AnalysisResult:
             first_contact_ratio=0.63,
             avg_reply_seconds=ReplySeconds(me=420, peer=1860),
             contact_balance=74,
-            confidence=Confidence.HIGH,
         ),
         report=ReportData(
             headline="한 줄 요약",
@@ -205,12 +204,3 @@ class TestStatusHelpers:
     )
     def test_terminal_flag(self, status, terminal):
         assert status.is_terminal is terminal
-
-
-class TestConfidenceDowngrade:
-    def test_steps_down_one_level(self):
-        assert Confidence.HIGH.downgrade() is Confidence.MEDIUM
-        assert Confidence.MEDIUM.downgrade() is Confidence.LOW
-
-    def test_low_is_the_floor(self):
-        assert Confidence.LOW.downgrade() is Confidence.LOW

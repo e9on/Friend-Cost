@@ -59,7 +59,6 @@ const RESULT: AnalysisResult = {
     firstContactRatio: 0.63,
     avgReplySeconds: { me: 420, peer: 1860 },
     contactBalance: 74,
-    confidence: 'high',
   },
   report: {
     headline: '서로 챙기지만 균형이 조금 기운 사이',

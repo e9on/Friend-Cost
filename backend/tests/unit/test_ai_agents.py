@@ -207,7 +207,6 @@ class TestReplySpeedUnit:
             RelationshipScoreData,
             ReplySeconds,
         )
-        from app.domain.value_object.enums import Confidence
 
         return _render_scores(
             RelationshipScoreData(
@@ -217,7 +216,6 @@ class TestReplySpeedUnit:
                 first_contact_ratio=0.5,
                 avg_reply_seconds=ReplySeconds(me=me, peer=peer),
                 contact_balance=90,
-                confidence=Confidence.HIGH,
             )
         )
 
@@ -262,3 +260,83 @@ class TestReplySpeedUnit:
         assert _minutes(1305) == "22분"
         assert _minutes(1834) == "31분"
         assert _minutes(90) == "2분"
+
+
+class TestFeeSignIsNotSentToTheModel:
+    """부호를 넘기지 않는다. 넘기면 모델이 부호를 설명한다.
+
+    실측 리포트에 이런 문장이 실렸다.
+
+        상대가 더 많은 노력을 기울이고 있어 **친구비가 음수로 나타났지만**,
+        이는 관계의 질을 떨어뜨리지 않습니다.
+
+    `음수` 는 내부 용어다. 사용자는 화면에서 부호를 본 적이 없다. 절댓값과
+    방향 문구만 본다. 글에만 나오면 화면에 없는 개념을 설명하는 셈이다.
+
+    `평균답장속도` 를 초에서 분으로 바꾼 것과 같은 방법이다. 말로 부탁하지
+    않고 **입력에서 없앤다.** `AI-프롬프트-명세.md` 5.3.3.
+    """
+
+    def _block(self, friend_fee):
+        from app.ai.agent.report import _render_scores
+        from app.domain.model.score import RelationshipScoreData, ReplySeconds
+
+        return _render_scores(
+            RelationshipScoreData(
+                friend_fee=friend_fee,
+                intimacy=60,
+                breakup_risk=20,
+                first_contact_ratio=0.5,
+                avg_reply_seconds=ReplySeconds(me=120, peer=180),
+                contact_balance=90,
+            )
+        )
+
+    def test_마이너스_부호를_넘기지_않는다(self):
+        block = self._block(-79_000)
+
+        assert "-79000" not in block
+        assert "-79,000" not in block
+
+    def test_금액은_절댓값으로_넘긴다(self):
+        assert "79000" in self._block(-79_000)
+
+    def test_방향을_말로_넘긴다(self):
+        assert "내가" in self._block(-79_000)
+        assert "친구가" in self._block(79_000)
+
+    def test_화면과_같은_말을_쓴다(self):
+        """화면은 "친구에게 친구비를 주세요"라고 쓴다.
+
+        글이 "내가 낼 몫"이라고 쓰면 같은 것을 두 이름으로 부르는 셈이다.
+        답장 속도를 초에서 분으로 맞춘 것과 같은 이유다.
+        """
+        assert "친구비를 주어야" in self._block(-79_000)
+
+    def test_두_방향의_문구가_다르다(self):
+        import json
+
+        pay = json.loads(self._block(-79_000))["친구비"]["방향"]
+        receive = json.loads(self._block(79_000))["친구비"]["방향"]
+
+        assert pay != receive
+
+    def test_비긴_경우도_말이_된다(self):
+        import json
+
+        assert json.loads(self._block(0))["친구비"]["금액(원)"] == 0
+
+
+class TestPromptForbidsSignWords:
+    """금지어는 보강이다. 근본은 입력에서 부호를 없애는 것이다."""
+
+    def test_음수_양수를_쓰지_말라고_적혀_있다(self):
+        from app.ai.prompt.templates import REPORT_SYSTEM
+
+        assert "음수" in REPORT_SYSTEM and "쓰지 않는다" in REPORT_SYSTEM
+
+    def test_프롬프트가_친구비를_부호로_설명하지_않는다(self):
+        """프롬프트 본문이 '음수면 …' 하고 가르치면 모델이 그 말을 옮긴다."""
+        from app.ai.prompt.templates import REPORT_SYSTEM
+
+        assert "음수면" not in REPORT_SYSTEM

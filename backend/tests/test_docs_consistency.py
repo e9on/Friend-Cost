@@ -20,7 +20,7 @@ from app.common.errors import ErrorCode, http_status_of, is_retryable
 from app.config.settings import Settings
 from app.domain.model.report import ReportData
 from app.domain.model.score import FEE_MAX, FEE_MIN
-from app.domain.value_object.enums import Confidence, JobStage, JobStatus
+from app.domain.value_object.enums import JobStage, JobStatus
 
 ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "mdfiles"
@@ -211,11 +211,17 @@ class TestEnumValues:
 
         assert expected in text, "단계 순서가 문서와 다르다"
 
-    def test_confidence_levels_are_documented(self):
+    def test_confidence_is_not_in_the_contract(self):
+        """신뢰도 등급은 없앴다. 되살아나면 문서와 어긋난다.
+
+        등급을 끌어내린 것은 관계가 아니라 우리 OCR 품질이었는데, 사용자에게는
+        자기 관계가 부실한 것으로 보였다. `관계-점수-계산-규칙.md` 11장.
+        """
         text = read(CONTRACT)
 
-        for level in Confidence:
-            assert f"`{level.value}`" in text
+        # OCR 블록의 인식 신뢰도는 다른 값이다. 점수 표에만 없으면 된다
+        scores = text[text.index("## 8."):text.index("## 9.")]
+        assert "`confidence` | enum" not in scores
 
 
 class TestReportLimits:
@@ -348,11 +354,10 @@ class TestFrontendAgreesWithBackend:
             # 각 단계마다 사용자에게 보여줄 문구가 있어야 한다
             assert f"{stage.value}:" in text, f"{stage.value} 안내 문구가 없다"
 
-    def test_confidence_levels_match(self):
+    def test_confidence_is_not_in_the_frontend_types(self):
         text = (FRONTEND / "api" / "types.ts").read_text(encoding="utf-8")
 
-        for level in Confidence:
-            assert f"'{level.value}'" in text
+        assert "confidence" not in text
 
     def test_failure_screen_covers_user_facing_errors(self):
         """사용자가 실제로 마주칠 오류에는 안내가 있어야 한다.

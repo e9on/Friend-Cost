@@ -9,14 +9,15 @@ import { useEffect, useRef, useState } from 'react'
 
 import type { AnalysisResult } from '../api/types'
 import {
-  CONFIDENCE_LABEL,
-  CONFIDENCE_NOTE,
+  balanceTone,
   formatCountdown,
   formatDuration,
   formatFee,
   formatPercent,
   formatSpan,
+  scoreTone,
   shareMessage,
+  thinDataNote,
 } from '../lib/format'
 import { drawResultCard, saveCard, shareCard } from '../lib/shareImage'
 
@@ -77,15 +78,44 @@ export function Result({ result, onRestart }: Props) {
   }
 
   const { scores, report, meta } = result
-  const note = CONFIDENCE_NOTE[scores.confidence]
+  const note = thinDataNote(meta.messageCount)
 
+  // 색은 눈에 띄게 하는 동시에 **그 숫자가 좋은 쪽인지** 알려준다.
+  // 손절 위험도만 방향이 뒤집힌다. 8점은 잘 나온 것이다.
+  // 답장 속도에 색이 없는 이유는 빠른 답장이 좋은 관계라는 근거가 없어서다.
+  // `Frontend-명세.md` 6.1.2
   const metrics = [
-    { label: '친밀도', value: `${scores.intimacy}`, unit: '점' },
-    { label: '손절 위험도', value: `${scores.breakupRisk}`, unit: '점' },
-    { label: '연락 균형도', value: `${scores.contactBalance}`, unit: '점' },
-    { label: '내가 먼저', value: formatPercent(scores.firstContactRatio), unit: '' },
-    { label: '내 답장', value: formatDuration(scores.avgReplySeconds.me), unit: '' },
-    { label: '상대 답장', value: formatDuration(scores.avgReplySeconds.peer), unit: '' },
+    { label: '친밀도', value: `${scores.intimacy}`, unit: '점', tone: scoreTone(scores.intimacy) },
+    {
+      label: '손절 위험도',
+      value: `${scores.breakupRisk}`,
+      unit: '점',
+      tone: scoreTone(scores.breakupRisk, false),
+    },
+    {
+      label: '연락 균형도',
+      value: `${scores.contactBalance}`,
+      unit: '점',
+      tone: scoreTone(scores.contactBalance),
+    },
+    {
+      label: '내가 먼저',
+      value: formatPercent(scores.firstContactRatio),
+      unit: '',
+      tone: balanceTone(scores.firstContactRatio),
+    },
+    {
+      label: '내 답장',
+      value: formatDuration(scores.avgReplySeconds.me),
+      unit: '',
+      tone: 'none' as const,
+    },
+    {
+      label: '상대 답장',
+      value: formatDuration(scores.avgReplySeconds.peer),
+      unit: '',
+      tone: 'none' as const,
+    },
   ]
 
   // 부호는 문구가 말하고 금액은 절댓값으로 보여준다.
@@ -102,11 +132,11 @@ export function Result({ result, onRestart }: Props) {
       <h2 className="headline">{report.headline}</h2>
       <p className="summary">{report.summary}</p>
 
-      {note && <p className="confidence-note">{note}</p>}
+      {note && <p className="thin-note">{note}</p>}
 
       <div className="metrics">
         {metrics.map((metric) => (
-          <div className="metric" key={metric.label}>
+          <div className={`metric tone-${metric.tone}`} key={metric.label}>
             <span className="metric-label">{metric.label}</span>
             <span className="metric-value">
               {metric.value}
@@ -136,10 +166,6 @@ export function Result({ result, onRestart }: Props) {
         <div>
           <dt>대화 기간</dt>
           <dd>{formatSpan(meta.spanSeconds)}</dd>
-        </div>
-        <div>
-          <dt>신뢰도</dt>
-          <dd>{CONFIDENCE_LABEL[scores.confidence]}</dd>
         </div>
       </dl>
 

@@ -12,10 +12,22 @@
   --line: #2e2e3d;
   --text: #f4f4f8;
   --muted: #9a9aae;
+  /* --muted 는 부수적인 안내문용이다. 읽어야 하는 라벨에 쓰면 묻힌다 */
+  --muted-strong: #c6c6d6;
   --accent: #ffd166;
   --danger: #ff6b6b;
   --ok: #6bcf9f;
   --radius: 18px;
+
+  /* 지표 칸의 톤. 글자색과 칸 배경·테두리를 함께 쓴다.
+   * 배경은 어두운 화면에서 뭉개지지 않을 만큼만 물들인다.
+   * `Frontend-명세.md` 6.1.2 */
+  --tone-good-bg: #16302a;
+  --tone-good-line: #2f6b56;
+  --tone-warn-bg: #332c17;
+  --tone-warn-line: #6d5c2a;
+  --tone-risk-bg: #331e21;
+  --tone-risk-line: #6f3b40;
 
   color-scheme: dark;
   font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
@@ -399,7 +411,7 @@ body {
   line-height: 1.7;
 }
 
-.confidence-note {
+.thin-note {
   margin: 0;
   padding: 10px 12px;
   border-radius: 12px;
@@ -415,8 +427,15 @@ body {
   gap: 10px;
 }
 
+/* 지표 격자가 읽히지 않았다.
+ *
+ * 칸 배경(--surface-2)이 패널 배경(--surface)과 거의 같은 색이라 격자가
+ * 떠 보이지 않았고, 라벨을 --muted 로 두어 '친밀도' 같은 **읽어야 하는 말**이
+ * 배경에 묻혔다. 값은 흰색이었지만 라벨이 안 보이니 무엇의 숫자인지 알 수
+ * 없었다. 칸에 테두리를 주고 라벨 톤을 올린다. */
 .metric {
   background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: 14px;
   padding: 14px;
   display: flex;
@@ -424,21 +443,55 @@ body {
   gap: 6px;
 }
 
+/* 색은 거드는 역할이다. 숫자와 라벨이 그대로 있어야 한다.
+ * 색을 구분하지 못하는 사용자에게 색은 아무 정보도 아니다. */
+.metric.tone-good {
+  background: var(--tone-good-bg);
+  border-color: var(--tone-good-line);
+}
+
+.metric.tone-good .metric-value {
+  color: var(--ok);
+}
+
+.metric.tone-warn {
+  background: var(--tone-warn-bg);
+  border-color: var(--tone-warn-line);
+}
+
+.metric.tone-warn .metric-value {
+  color: var(--accent);
+}
+
+/* 여기서는 빨강을 쓴다. 친구비(6.1.1)에는 쓰지 않았다.
+ * 친구비의 방향은 '누가 더 기여했나'이지 좋고 나쁨이 아니지만,
+ * 손절 위험도는 이름 그대로 위험도다. 뜻이 다르므로 다르게 칠한다. */
+.metric.tone-risk {
+  background: var(--tone-risk-bg);
+  border-color: var(--tone-risk-line);
+}
+
+.metric.tone-risk .metric-value {
+  color: var(--danger);
+}
+
 .metric-label {
-  color: var(--muted);
-  font-size: 13px;
+  color: var(--muted-strong);
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .metric-value {
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
 .metric-value em {
   font-style: normal;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted-strong);
   margin-left: 2px;
 }
 

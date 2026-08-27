@@ -7,15 +7,16 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  CONFIDENCE_LABEL,
-  CONFIDENCE_NOTE,
+  balanceTone,
   formatCountdown,
   formatDuration,
   formatFee,
   formatPercent,
   formatSpan,
   formatWon,
+  scoreTone,
   shareMessage,
+  thinDataNote,
 } from './format'
 
 describe('formatWon', () => {
@@ -82,20 +83,6 @@ describe('formatCountdown', () => {
 
   it('만료 후에도 음수를 보여주지 않는다', () => {
     expect(formatCountdown(-30)).toBe('0:00')
-  })
-})
-
-describe('신뢰도 안내', () => {
-  it('세 등급 모두 이름이 있다', () => {
-    expect(CONFIDENCE_LABEL.high).toBe('높음')
-    expect(CONFIDENCE_LABEL.medium).toBe('보통')
-    expect(CONFIDENCE_LABEL.low).toBe('낮음')
-  })
-
-  it('높음일 때만 경고를 붙이지 않는다', () => {
-    expect(CONFIDENCE_NOTE.high).toBeNull()
-    expect(CONFIDENCE_NOTE.medium).not.toBeNull()
-    expect(CONFIDENCE_NOTE.low).not.toBeNull()
   })
 })
 
@@ -171,5 +158,81 @@ describe('shareMessage', () => {
   it('친구가 해볼 수 있게 권하는 말이 붙는다', () => {
     // 결과만 던지면 링크를 왜 눌러야 하는지 알 수 없다
     expect(shareMessage(-79000)).toMatch(/해볼래|해봐/)
+  })
+})
+
+describe('scoreTone', () => {
+  it('높을수록 좋은 지표는 높으면 good', () => {
+    expect(scoreTone(60)).toBe('good')
+    expect(scoreTone(100)).toBe('good')
+    // 실측에서 64 가 노랑으로 떨어져 어울리지 않았다
+    expect(scoreTone(64)).toBe('good')
+  })
+
+  it('높을수록 좋은 지표는 낮으면 risk', () => {
+    expect(scoreTone(29)).toBe('risk')
+    expect(scoreTone(0)).toBe('risk')
+  })
+
+  it('가운데는 warn', () => {
+    expect(scoreTone(30)).toBe('warn')
+    expect(scoreTone(59)).toBe('warn')
+    // 낮을수록 좋은 쪽은 거울상이다. 40 이하 good / 71 이상 risk
+    expect(scoreTone(40, false)).toBe('good')
+    expect(scoreTone(41, false)).toBe('warn')
+    expect(scoreTone(71, false)).toBe('risk')
+  })
+
+  it('낮을수록 좋은 지표는 방향이 뒤집힌다', () => {
+    // 손절 위험도 8점은 잘 나온 것이다. 초록이어야 한다
+    expect(scoreTone(8, false)).toBe('good')
+    expect(scoreTone(90, false)).toBe('risk')
+  })
+})
+
+describe('balanceTone', () => {
+  it('반반에 가까우면 good', () => {
+    expect(balanceTone(0.5)).toBe('good')
+    expect(balanceTone(0.35)).toBe('good')
+  })
+
+  it('많이 치우치면 risk', () => {
+    expect(balanceTone(0.05)).toBe('risk')
+    expect(balanceTone(0.95)).toBe('risk')
+  })
+
+  it('한쪽으로 치우친 정도는 방향과 무관하다', () => {
+    // 내가 90%든 상대가 90%든 치우친 것은 마찬가지다
+    expect(balanceTone(0.9)).toBe(balanceTone(0.1))
+  })
+
+  it('어중간하면 warn', () => {
+    expect(balanceTone(0.333)).toBe('warn')
+  })
+})
+
+describe('thinDataNote', () => {
+  it('메시지가 적으면 안내를 준다', () => {
+    expect(thinDataNote(20)).toContain('적어')
+  })
+
+  it('충분하면 안내가 없다', () => {
+    expect(thinDataNote(40)).toBeNull()
+    expect(thinDataNote(120)).toBeNull()
+  })
+
+  it('분석을 거절하는 하한과는 다른 선이다', () => {
+    // 15개 미만은 서버가 아예 거절한다. 15~39 는 분석은 하되 알려준다
+    expect(thinDataNote(15)).not.toBeNull()
+    expect(thinDataNote(39)).not.toBeNull()
+  })
+
+  it('등급을 말하지 않는다', () => {
+    // 신뢰도 등급은 없앴다. 재미로 읽는 결과에 정확도 등급을 붙이면
+    // 사용자는 그것을 자기 관계에 대한 평가로 읽는다
+    const note = thinDataNote(20) ?? ''
+    for (const word of ['신뢰도', '낮음', '보통', '높음']) {
+      expect(note).not.toContain(word)
+    }
   })
 })

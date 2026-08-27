@@ -22,25 +22,6 @@ class TimeSource(str, Enum):
     UNKNOWN = "unknown"
 
 
-class Confidence(str, Enum):
-    """결과 신뢰도. 데이터 계약 8장."""
-
-    HIGH = "high"
-    MEDIUM = "medium"
-    LOW = "low"
-
-    def downgrade(self) -> "Confidence":
-        """한 단계 강등한다. ``LOW`` 에서는 더 내려가지 않는다.
-
-        관계 점수 계산 규칙 11장의 강등 규칙.
-        """
-        if self is Confidence.HIGH:
-            return Confidence.MEDIUM
-        if self is Confidence.MEDIUM:
-            return Confidence.LOW
-        return Confidence.LOW
-
-
 class JobStatus(str, Enum):
     """작업 상태. 데이터 계약 10장."""
 

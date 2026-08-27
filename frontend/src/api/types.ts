@@ -9,8 +9,6 @@ export type JobStatus = 'pending' | 'processing' | 'done' | 'failed' | 'expired'
 
 export type JobStage = 'ocr' | 'parsing' | 'analyzing' | 'scoring' | 'reporting'
 
-export type Confidence = 'high' | 'medium' | 'low'
-
 export interface ErrorBody {
   code: string
   message: string
@@ -49,7 +47,6 @@ export interface RelationshipScoreData {
   firstContactRatio: number
   avgReplySeconds: ReplySeconds
   contactBalance: number
-  confidence: Confidence
 }
 
 export interface ReportSection {

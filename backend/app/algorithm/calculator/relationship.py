@@ -25,8 +25,6 @@ from app.algorithm.rule.constants import (
     FEE_UNIT,
     MIN_REPLY_SAMPLES,
     MIN_SESSIONS,
-    RELIABLE_MESSAGES,
-    RELIABLE_TIME_COVERAGE,
     REPLY_CEIL_SECONDS,
     REPLY_FLOOR_SECONDS,
     W_INTIMACY_AFFECTION,
@@ -47,7 +45,6 @@ from app.domain.model.analysis import (
     RelationshipAnalysisData,
 )
 from app.domain.model.conversation import ConversationMeta
-from app.domain.value_object.enums import Confidence
 
 _LOG_SPAN = math.log(REPLY_CEIL_SECONDS / REPLY_FLOOR_SECONDS)
 
@@ -227,25 +224,3 @@ def friend_fee(raw_gap: float) -> int:
 
     amount = clamp(round_to_unit(FEE_MAX * position, FEE_UNIT), 0, FEE_MAX)
     return int(-amount if raw_gap < 0 else amount)
-
-
-
-def confidence_of(meta: ConversationMeta, session_count: int) -> Confidence:
-    """결과 신뢰도.
-
-    표본이 부족한 결과를 그럴듯하게 보여주지 않기 위한 장치다.
-    """
-    if session_count < MIN_SESSIONS:
-        return Confidence.LOW
-
-    enough_messages = meta.message_count >= RELIABLE_MESSAGES
-    enough_coverage = meta.time_coverage >= RELIABLE_TIME_COVERAGE
-
-    if enough_messages and enough_coverage:
-        level = Confidence.HIGH
-    elif enough_messages or enough_coverage:
-        level = Confidence.MEDIUM
-    else:
-        level = Confidence.LOW
-
-    return level.downgrade() if meta.sampled else level

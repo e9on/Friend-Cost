@@ -20,7 +20,7 @@ from app.algorithm.calculator.relationship import (
     intimacy,
 )
 from app.common.errors import AppError, ErrorCode
-from app.domain.value_object.enums import Confidence, Speaker
+from app.domain.value_object.enums import Speaker
 from tests.builders import BASE_TS, DAY, MINUTE, alternating, analysis, conversation, msg
 
 
@@ -70,11 +70,6 @@ class TestCalculateScores:
             )
         )
 
-    def test_high_confidence_for_a_long_well_timed_conversation(self):
-        scores = calculate_scores(spec_like_conversation(), analysis())
-
-        assert scores.confidence is Confidence.HIGH
-
     def test_rejects_conversations_below_the_minimum(self):
         convo = conversation(alternating(14))
 
@@ -88,12 +83,13 @@ class TestCalculateScores:
 
         assert scores.friend_fee >= 1_000
 
-    def test_single_session_conversation_gets_low_confidence(self):
+    def test_single_session_conversation_still_scores(self):
+        """세션이 하나여도 점수는 낸다. 신뢰도 등급으로 깎던 것을 없앴다."""
         # 15개가 5분 간격이면 세션은 하나뿐이다
         scores = calculate_scores(conversation(alternating(15)), analysis())
 
         assert len(split_sessions(conversation(alternating(15)))) == 1
-        assert scores.confidence is Confidence.LOW
+        assert scores.friend_fee >= 1_000
 
     def test_result_stays_within_contract_ranges(self):
         scores = calculate_scores(spec_like_conversation(), analysis())

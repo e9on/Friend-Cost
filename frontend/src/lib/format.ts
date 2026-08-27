@@ -1,7 +1,5 @@
 /** 화면에 보여줄 값으로 다듬는다. */
 
-import type { Confidence } from '../api/types'
-
 export function formatWon(value: number): string {
   return `${value.toLocaleString('ko-KR')}원`
 }
@@ -66,6 +64,47 @@ export function shareMessage(friendFee: number): string {
   return `친구비 계산해보니 ${who} 돈이 ${fee.amount}래. 너도 해볼래?`
 }
 
+export type Tone = 'good' | 'warn' | 'risk' | 'none'
+
+// 세 칸으로 나눈다. 다섯 단계로 나누면 색이 다섯 가지가 되어 다시 구분이
+// 안 된다.
+//
+// 경계를 삼등분(67/33)이 아니라 60/30 에 둔 것은 실측 때문이다. 친밀도 64,
+// 연락 균형도 62 가 노랑으로 떨어졌는데 둘 다 준수한 값이라 어울리지 않았다.
+// `Frontend-명세.md` 6.1.2
+const GOOD_AT = 60
+const RISK_AT = 30
+
+/**
+ * 0~100 점수를 색 톤으로 옮긴다.
+ *
+ * `higherIsBetter` 가 `false` 면 방향이 뒤집힌다. 손절 위험도 8점은 **잘 나온
+ * 것이다.** 방향을 고정해두면 낮은 위험도가 빨갛게 칠해져 뜻이 정반대가 된다.
+ */
+export function scoreTone(value: number, higherIsBetter = true): Tone {
+  // 값을 '좋은 정도'로 한 번 뒤집어 기준을 하나만 쓴다. 방향마다 부등호를
+  // 따로 쓰면 경계에서 앞뒤가 어긋난다
+  const goodness = higherIsBetter ? value : 100 - value
+  if (goodness >= GOOD_AT) return 'good'
+  if (goodness < RISK_AT) return 'risk'
+  return 'warn'
+}
+
+/**
+ * 반반에서 얼마나 떨어졌는지로 잰다.
+ *
+ * 어느 쪽으로 치우쳤는지는 보지 않는다. 내가 90%든 상대가 90%든 한쪽이
+ * 짊어지고 있다는 사실은 같다.
+ */
+export function balanceTone(ratio: number): Tone {
+  // 자릿수를 맞추지 않으면 |0.35 - 0.5| 가 0.15000000000000002 이 되어
+  // 경계값이 한 칸 밀린다. 서버가 주는 비율도 소수점 셋째 자리다
+  const off = Math.round(Math.abs(ratio - 0.5) * 1000) / 1000
+  if (off <= 0.15) return 'good'
+  if (off <= 0.3) return 'warn'
+  return 'risk'
+}
+
 export function formatPercent(ratio: number): string {
   return `${Math.round(ratio * 100)}%`
 }
@@ -102,17 +141,24 @@ export function formatSpan(seconds: number | null): string {
   return `약 ${months}개월`
 }
 
-export const CONFIDENCE_LABEL: Record<Confidence, string> = {
-  high: '높음',
-  medium: '보통',
-  low: '낮음',
-}
+/**
+ * 표본이 적을 때만 띄우는 한 줄.
+ *
+ * 신뢰도 등급(높음/보통/낮음)을 두었다가 없앴다. 재미로 읽는 결과에 정확도
+ * 등급을 붙이면 사용자는 그것을 **자기 관계에 대한 평가**로 읽는데, 실제로
+ * 등급을 끌어내리던 것은 관계가 아니라 우리 OCR 품질이었다.
+ *
+ * 판단 근거를 메시지 수 하나로 둔 이유는 그것이 **사용자가 어찌할 수 있는
+ * 값**이기 때문이다. 캡처를 더 올리면 늘어난다. 시각 복원 비율은 OCR 이
+ * 시각을 읽어내느냐에 달려 있어 사용자가 손댈 수 없다.
+ *
+ * `Frontend-명세.md` 6.4
+ */
+const THIN_MESSAGES = 40
 
-/** 신뢰도가 낮을 때 결과를 곧이곧대로 읽지 않도록 덧붙이는 안내. */
-export const CONFIDENCE_NOTE: Record<Confidence, string | null> = {
-  high: null,
-  medium: '대화량이 넉넉하지 않아 결과가 흔들릴 수 있어요.',
-  low: '분석할 대화가 적어 결과를 참고만 해주세요.',
+export function thinDataNote(messageCount: number): string | null {
+  if (messageCount >= THIN_MESSAGES) return null
+  return '분석한 대화가 적어 결과가 흔들릴 수 있어요.'
 }
 
 /** 남은 시간을 mm:ss 로. TTL 카운트다운에 쓴다. */

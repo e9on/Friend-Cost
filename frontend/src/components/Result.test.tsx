@@ -10,7 +10,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Result } from './Result'
-import type { AnalysisResult, Confidence } from '../api/types'
+import type { AnalysisResult } from '../api/types'
 
 const share = vi.hoisted(() => ({
   drawResultCard: vi.fn(),
@@ -30,7 +30,6 @@ function result(overrides: Partial<AnalysisResult> = {}): AnalysisResult {
       firstContactRatio: 0.63,
       avgReplySeconds: { me: 420, peer: 1860 },
       contactBalance: 74,
-      confidence: 'high',
       ...overrides.scores,
     },
     report: {
@@ -104,23 +103,28 @@ describe('결과 표시', () => {
   })
 })
 
-describe('신뢰도 안내', () => {
-  it.each([
-    ['medium' as Confidence, /대화량이 넉넉하지 않아/],
-    ['low' as Confidence, /분석할 대화가 적어/],
-  ])('신뢰도가 %s면 경고를 덧붙인다', (confidence, pattern) => {
+describe('표본이 적을 때의 안내', () => {
+  it('메시지가 적으면 알려준다', () => {
     const payload = result()
-    payload.scores.confidence = confidence
+    payload.meta.messageCount = 20
 
     render(<Result result={payload} onRestart={vi.fn()} />)
 
-    expect(screen.getByText(pattern)).toBeInTheDocument()
+    expect(screen.getByText(/분석한 대화가 적어/)).toBeInTheDocument()
   })
 
-  it('신뢰도가 높으면 경고를 붙이지 않는다', () => {
+  it('충분하면 붙이지 않는다', () => {
     render(<Result result={result()} onRestart={vi.fn()} />)
 
-    expect(screen.queryByText(/대화량이 넉넉하지 않아/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/분석한 대화가 적어/)).not.toBeInTheDocument()
+  })
+
+  it('신뢰도 등급은 화면에 없다', () => {
+    // 재미로 읽는 결과에 정확도 등급을 붙이면 사용자는 그것을
+    // 자기 관계에 대한 평가로 읽는다
+    const { container } = render(<Result result={result()} onRestart={vi.fn()} />)
+
+    expect(container.textContent).not.toContain('신뢰도')
   })
 
   it('일부만 분석했으면 그 사실을 알린다', () => {
@@ -232,5 +236,55 @@ describe('친구에게 공유', () => {
     await waitFor(() =>
       expect(screen.getByText(/화면을 캡처해 주세요/)).toBeInTheDocument(),
     )
+  })
+})
+
+describe('지표 색', () => {
+  function toneOf(container: HTMLElement, label: string): string {
+    const card = Array.from(container.querySelectorAll('.metric')).find((el) =>
+      el.querySelector('.metric-label')?.textContent === label,
+    )
+    return card?.className ?? ''
+  }
+
+  it('손절 위험도는 낮을수록 좋은 쪽으로 칠한다', () => {
+    // 8점은 잘 나온 것이다. 방향을 고정하면 뜻이 정반대가 된다
+    const { container } = render(
+      <Result result={result({ scores: { breakupRisk: 8 } as never })} onRestart={vi.fn()} />,
+    )
+
+    expect(toneOf(container, '손절 위험도')).toContain('tone-good')
+  })
+
+  it('손절 위험도가 높으면 주의로 칠한다', () => {
+    const { container } = render(
+      <Result result={result({ scores: { breakupRisk: 90 } as never })} onRestart={vi.fn()} />,
+    )
+
+    expect(toneOf(container, '손절 위험도')).toContain('tone-risk')
+  })
+
+  it('친밀도는 높을수록 좋은 쪽으로 칠한다', () => {
+    const { container } = render(
+      <Result result={result({ scores: { intimacy: 90 } as never })} onRestart={vi.fn()} />,
+    )
+
+    expect(toneOf(container, '친밀도')).toContain('tone-good')
+  })
+
+  it('답장 속도에는 색을 주지 않는다', () => {
+    // 빨리 답한다고 좋은 관계라는 근거가 없다
+    const { container } = render(<Result result={result()} onRestart={vi.fn()} />)
+
+    expect(toneOf(container, '내 답장')).toContain('tone-none')
+    expect(toneOf(container, '상대 답장')).toContain('tone-none')
+  })
+
+  it('색을 빼도 숫자와 라벨이 그대로 남는다', () => {
+    // 색을 구분하지 못하는 사용자에게 색은 아무 정보도 아니다
+    render(<Result result={result()} onRestart={vi.fn()} />)
+
+    expect(screen.getByText('손절 위험도')).toBeInTheDocument()
+    expect(screen.getByText('38')).toBeInTheDocument()
   })
 })

@@ -14,7 +14,6 @@ from app.algorithm.calculator.behavior import (
 from app.algorithm.calculator.relationship import (
     contribution_gap,
     breakup_risk,
-    confidence_of,
     friend_fee,
     intimacy,
 )
@@ -67,5 +66,4 @@ def calculate_scores(
         first_contact_ratio=initiation,
         avg_reply_seconds=replies,
         contact_balance=balance,
-        confidence=confidence_of(convo.meta, session_count=len(sessions)),
     )

@@ -49,21 +49,39 @@ def _minutes(seconds: int | None) -> str:
     return f"{hours}시간 {rest}분" if rest else f"{hours}시간"
 
 
+def _fee(friend_fee: int) -> dict[str, object]:
+    """친구비를 방향과 절댓값으로 나눈다. 부호는 넘기지 않는다.
+
+    문구를 화면(`frontend/src/lib/format.ts`)과 같은 말로 맞춘다. 화면은
+    "친구에게 친구비를 주세요"라고 쓰는데 글이 "내가 낼 몫"이라고 쓰면 같은
+    것을 두 이름으로 부르는 셈이다. 답장 속도를 초가 아니라 분으로 넘긴 것과
+    같은 이유다.
+    """
+    if friend_fee > 0:
+        direction = "친구가 나에게 친구비를 주어야 함"
+    elif friend_fee < 0:
+        direction = "내가 친구에게 친구비를 주어야 함"
+    else:
+        direction = "서로 비긴 사이"
+    return {"방향": direction, "금액(원)": abs(friend_fee)}
+
+
 def _render_scores(scores: RelationshipScoreData) -> str:
     reply = scores.avg_reply_seconds
     return json.dumps(
         {
-            "친구비(원)": scores.friend_fee,
+            # 부호를 보내면 모델이 부호를 설명한다. 실측 리포트에
+            # "친구비가 음수로 나타났지만"이 실렸다. `음수` 는 내부 용어이고
+            # 사용자는 화면에서 부호를 본 적이 없다. 절댓값과 방향 문구만
+            # 본다. 말로 부탁하는 것보다 **입력에서 없애는 쪽이 확실하다.**
+            # `평균답장속도` 를 초에서 분으로 바꾼 것과 같다.
+            # AI-프롬프트-명세 5.3.3
+            "친구비": _fee(scores.friend_fee),
             "친밀도": scores.intimacy,
             "손절위험도": scores.breakup_risk,
             "먼저연락비율": scores.first_contact_ratio,
             "평균답장속도": {"나": _minutes(reply.me), "상대": _minutes(reply.peer)},
             "연락균형도": scores.contact_balance,
-            # 관계의 신뢰도가 아니라 **이 분석을 얼마나 믿을 수 있는지**다.
-            # "신뢰도"로 적어 보냈더니 모델이 관계의 신뢰로 읽고
-            # "신뢰도는 high로 평가됩니다"라고 썼다. 사용자는 그것을
-            # "이 관계는 믿을 만하다"로 읽는다. AI-프롬프트-명세 5.2
-            "분석신뢰도": scores.confidence.value,
         },
         ensure_ascii=False,
     )

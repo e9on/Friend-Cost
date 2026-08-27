@@ -131,14 +131,14 @@ class TestUsefulThingsAreLogged:
 class TestAuditEvent:
     def test_renders_as_key_value_pairs(self):
         event = AuditEvent(
-            "analysis.completed", images=5, messages=184, ms=1200, confidence="high"
+            "analysis.completed", images=5, messages=184, ms=1200, coverage=0.91
         )
 
         rendered = str(event)
 
         assert rendered.startswith("analysis.completed ")
         assert "images=5" in rendered
-        assert "confidence=high" in rendered
+        assert "coverage=0.91" in rendered
 
     def test_drops_empty_values(self):
         event = AuditEvent("analysis.failed", code="OCR_FAILED", stage=None)

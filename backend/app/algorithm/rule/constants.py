@@ -71,10 +71,8 @@ FEE_GAP_STDDEV: Final = 0.125
 
 # --- 표본 요건 ---
 MIN_MESSAGES: Final = 15  # 미만이면 분석 거절
-RELIABLE_MESSAGES: Final = 40  # 이상이어야 신뢰도 high 후보
 MIN_REPLY_SAMPLES: Final = 3  # 미만이면 평균 답장 속도를 내지 않는다
 MIN_SESSIONS: Final = 3  # 미만이면 먼저 연락 비율이 무의미
-RELIABLE_TIME_COVERAGE: Final = 0.6
 
 # --- 친밀도 가중치 (합 1.00) ---
 W_INTIMACY_TONE: Final = 0.35

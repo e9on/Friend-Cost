@@ -6,7 +6,6 @@
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
-from app.domain.value_object.enums import Confidence
 
 FEE_MIN = -100_000
 FEE_MAX = 100_000
@@ -38,4 +37,3 @@ class RelationshipScoreData(_Base):
     first_contact_ratio: float = Field(ge=0.0, le=1.0)
     avg_reply_seconds: ReplySeconds
     contact_balance: int = Field(ge=0, le=100)
-    confidence: Confidence
