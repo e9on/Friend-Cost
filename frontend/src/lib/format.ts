@@ -25,6 +25,10 @@ export interface FormattedFee {
  *
  * 문구는 명사구가 아니라 **할 일**로 쓴다. "이 친구가 나에게 낼 친구비"보다
  * "친구에게 친구비를 요청하세요"가 무엇을 뜻하는지 바로 읽힌다.
+ *
+ * 두 방향 모두 시키는 말로 끝을 맞춘다. "요청하세요"와 "주어야 합니다"가
+ * 섞여 있었는데, 한쪽은 시키는 말이고 다른 쪽은 설명하는 말이라 같은 자리에
+ * 번갈아 나오면 결이 달라진다.
  */
 export function formatFee(value: number): FormattedFee {
   if (value > 0) {
@@ -37,7 +41,7 @@ export function formatFee(value: number): FormattedFee {
   if (value < 0) {
     return {
       direction: 'pay',
-      label: '친구에게 친구비를 주어야 합니다',
+      label: '친구에게 친구비를 주세요',
       amount: formatWon(-value),
     }
   }

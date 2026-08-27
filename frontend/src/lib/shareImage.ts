@@ -127,8 +127,10 @@ export function drawResultCard(
   // 방향 문구를 함께 새긴다. 금액만 있으면 누가 누구에게 내는지 알 수 없다.
   // 화면에서는 절댓값만 보여주므로 이미지에도 부호를 붙이지 않는다
   const fee = formatFee(result.scores.friendFee)
-  ctx.fillStyle = MUTED
-  ctx.font = font(34, 500)
+  // 화면(.fee-label)과 같은 무게로 새긴다. 흐리게 두면 큰 숫자에 묻혀
+  // 누가 누구에게 내는지가 읽히지 않는다
+  ctx.fillStyle = TEXT
+  ctx.font = font(40, 700)
   ctx.fillText(fee.label, PADDING, y)
   y += 46
 

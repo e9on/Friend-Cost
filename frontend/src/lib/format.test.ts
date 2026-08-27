@@ -115,12 +115,20 @@ describe('formatFee', () => {
     expect(fee.label).toContain('요청')
   })
 
-  it('음수면 내가 주어야 한다고 한다', () => {
+  it('음수면 내가 주라고 한다', () => {
     const fee = formatFee(-36000)
 
     expect(fee.direction).toBe('pay')
     expect(fee.amount).toBe('36,000원')
-    expect(fee.label).toContain('주어야')
+    expect(fee.label).toContain('주세요')
+  })
+
+  it('방향 문구는 둘 다 할 일로 끝난다', () => {
+    // '요청하세요'와 '주어야 합니다'가 섞여 있었다. 한쪽은 시키는 말이고
+    // 다른 쪽은 설명하는 말이라, 같은 자리에 번갈아 나오면 결이 달라진다
+    for (const value of [34000, -36000]) {
+      expect(formatFee(value).label.endsWith('하세요') || formatFee(value).label.endsWith('주세요')).toBe(true)
+    }
   })
 
   it('방향마다 문구가 다르다', () => {
