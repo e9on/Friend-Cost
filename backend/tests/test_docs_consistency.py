@@ -565,3 +565,36 @@ class TestLegalDrafts:
         text = read(LEGAL / "이용약관.md")
 
         assert "만 14세 이상" in text
+
+
+class TestDockerfile:
+    """이미지가 실제로 쓰는 OCR 엔진을 담고 있는가.
+
+    `pip install .` 만 하면 `rapidocr` 이 빠진다. optional-dependencies 에
+    있기 때문이다. 그대로 배포하면 첫 분석 요청에서 ImportError 로 죽는다.
+    로컬에서는 `.venv` 에 설치돼 있어 드러나지 않는다.
+    """
+
+    def dockerfile(self) -> str:
+        return (ROOT / "backend" / "Dockerfile").read_text(encoding="utf-8")
+
+    def test_ocr_extra_를_설치한다(self):
+        assert ".[ocr]" in self.dockerfile()
+
+    def test_모델을_빌드_때_받아둔다(self):
+        """첫 요청에서 받으면 그 사용자가 다운로드를 기다린다.
+
+        컨테이너가 네트워크를 못 쓰는 환경이면 아예 실패한다.
+        """
+        assert "RapidOCR" in self.dockerfile()
+
+    def test_pyproject_가_직접_쓰는_패키지를_선언한다(self):
+        """`PIL` 을 직접 임포트하면서 선언은 하지 않고 있었다.
+
+        `rapidocr` 이 딸려 오는 것에 기대는 셈인데, 그쪽이 의존성을 바꾸면
+        예고 없이 깨진다.
+        """
+        text = (ROOT / "backend" / "pyproject.toml").read_text(encoding="utf-8")
+        ocr_block = text[text.index("ocr = ["):text.index("]", text.index("ocr = ["))]
+
+        assert "pillow" in ocr_block.lower()
