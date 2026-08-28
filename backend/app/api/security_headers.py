@@ -11,7 +11,7 @@ API 서버라 브라우저가 이 응답을 직접 렌더링할 일은 거의 �
 - `Referrer-Policy: no-referrer` — `jobId` 가 URL에 들어간다. 결과 페이지에서
   외부 링크를 타면 그 값이 다른 사이트로 새어 나갈 수 있다.
 - `Cache-Control: no-store` — 결과에는 사적인 대화 분석이 담긴다. 중간 캐시나
-  브라우저 디스크에 남으면 TTL 20분이 무의미해진다.
+  브라우저 디스크에 남으면 TTL 5분이 무의미해진다.
 """
 
 from typing import Final

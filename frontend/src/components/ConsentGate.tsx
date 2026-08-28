@@ -102,7 +102,7 @@ export function ConsentGate({ children }: { children: ReactNode }) {
             </div>
             <div>
               <dt>보유 기간</dt>
-              <dd>20분 뒤 자동 삭제 (IP는 저장하지 않음)</dd>
+              <dd>5분 뒤 자동 삭제 (IP는 저장하지 않음)</dd>
             </div>
           </dl>
 

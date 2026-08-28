@@ -111,7 +111,7 @@ Provider는 전송만 한다. 프롬프트는 `app/ai/prompt/`, 응답 검증은
 
 | 변수 | 기본값 | 설명 |
 | --- | --- | --- |
-| `FC_TTL_SECONDS` | 1200 | 임시 데이터 수명 (20분, 생성 시점 고정) |
+| `FC_TTL_SECONDS` | 300 | 임시 데이터 수명 (5분, 생성 시점 고정) |
 | `FC_MAX_IMAGES` | 10 | 이미지 개수 상한 |
 | `FC_MAX_MESSAGES` | 120 | 초과 시 샘플링 |
 | `FC_RATE_LIMIT_PER_MINUTE` | 5 | IP당 분석 생성 |

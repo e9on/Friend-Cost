@@ -598,3 +598,33 @@ class TestDockerfile:
         ocr_block = text[text.index("ocr = ["):text.index("]", text.index("ocr = ["))]
 
         assert "pillow" in ocr_block.lower()
+
+
+class TestFrontendTtlText:
+    """화면이 말하는 보관 시간이 설정과 같은가.
+
+    문서와 법률 문서는 이미 잠겨 있는데 화면 문구는 그렇지 않았다. 세
+    곳에 분 단위가 하드코딩돼 있어, TTL 을 바꾸면 서버는 5분에 지우면서
+    화면은 20분이라고 말하는 상태가 된다.
+
+    사용자가 보는 것은 화면이다. 화면이 틀리면 고지가 틀린 것이다.
+    """
+
+    def frontend_texts(self) -> dict[str, str]:
+        names = ("ConsentGate.tsx", "ErrorBoundary.tsx", "Failure.tsx")
+        return {name: (FRONTEND / "components" / name).read_text(encoding="utf-8") for name in names}
+
+    def test_화면_문구가_설정과_같다(self):
+        minutes = Settings().ttl_seconds // 60
+
+        for name, text in self.frontend_texts().items():
+            assert f"{minutes}분" in text, f"{name} 에 {minutes}분이 없다"
+
+    def test_옛_값이_남아_있지_않다(self):
+        """바꾸다 만 곳을 잡는다. 한 곳만 남아도 사용자는 다른 말을 듣는다."""
+        minutes = Settings().ttl_seconds // 60
+        stale = {"20분", "10분", "30분", "60분"} - {f"{minutes}분"}
+
+        for name, text in self.frontend_texts().items():
+            for value in stale:
+                assert value not in text, f"{name} 에 옛 값 {value} 가 남아 있다"

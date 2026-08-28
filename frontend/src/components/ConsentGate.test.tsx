@@ -88,7 +88,7 @@ describe('최초 입장 동의', () => {
     render(<ConsentGate>{child()}</ConsentGate>)
 
     // IP 는 수집 항목과 보유 기간 두 곳에 나온다. 개수가 아니라 존재를 본다
-    for (const word of ['대화 캡처', 'IP', '20분']) {
+    for (const word of ['대화 캡처', 'IP', '5분']) {
       expect(screen.getAllByText(new RegExp(word)).length).toBeGreaterThan(0)
     }
   })

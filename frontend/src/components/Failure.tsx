@@ -84,7 +84,7 @@ const GUIDES: Record<string, Guide> = {
   },
   JOB_EXPIRED: {
     title: '결과가 만료되었어요',
-    hint: '임시 데이터는 20분 뒤 자동으로 지워져요. 다시 분석해 주세요.',
+    hint: '임시 데이터는 5분 뒤 자동으로 지워져요. 다시 분석해 주세요.',
     retry: false,
   },
   ANALYSIS_TIMEOUT: {

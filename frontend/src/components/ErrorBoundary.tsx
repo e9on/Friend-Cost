@@ -45,7 +45,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <h2 className="headline">화면을 그리지 못했어요</h2>
         <p className="summary">
           새로고침하면 처음부터 다시 시작할 수 있어요. 올렸던 이미지는 서버에서
-          이미 지워졌거나 20분 뒤 자동으로 사라집니다.
+          이미 지워졌거나 5분 뒤 자동으로 사라집니다.
         </p>
         <button
           type="button"
