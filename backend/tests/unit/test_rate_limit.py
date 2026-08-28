@@ -188,3 +188,78 @@ class TestRateLimiter:
         wait = limiter.retry_after_for(ErrorCode.DAILY_LIMIT_EXCEEDED, "ip")
 
         assert wait > 60 * 60  # 분 단위가 아니라 시간 단위여야 한다
+
+
+class TestServiceDailyLimit:
+    """IP 와 무관한 하루 총량.
+
+    다른 제한은 전부 IP 기준이다. IP 하나가 하루 10건을 넘지 못하게 막지만,
+    서로 다른 IP 1,000개가 오면 하루 10,000건이 나간다. 전체를 막는 것이
+    없었다.
+
+    지금은 LLM 무료 티어라 넘으면 호출이 실패할 뿐이지만, 유료로 전환하는
+    순간 이 구멍이 그대로 청구서가 된다.
+
+    `운영-보안-법적고지-명세.md` 6.2.1
+    """
+
+    def limiter(self, clock, service_per_day=2):
+        return RateLimiter(
+            per_minute=100,
+            per_day=100,
+            concurrent=100,
+            poll_per_minute=100,
+            service_per_day=service_per_day,
+            clock=clock,
+        )
+
+    def test_서로_다른_IP_여도_전체_한도에_걸린다(self, clock):
+        limiter = self.limiter(clock)
+
+        limiter.check_create("1.1.1.1")
+        limiter.check_create("2.2.2.2")
+
+        with pytest.raises(AppError) as caught:
+            limiter.check_create("3.3.3.3")
+
+        assert caught.value.code is ErrorCode.SERVICE_DAILY_LIMIT
+
+    def test_개인_할당량과_다른_코드를_쓴다(self, clock):
+        """전역 상한에 걸린 사용자는 자기 몫을 쓴 적이 없다.
+
+        같은 코드를 쓰면 "네가 다 썼다"고 사실과 다른 말을 하게 된다.
+        """
+        limiter = self.limiter(clock)
+        limiter.check_create("1.1.1.1")
+        limiter.check_create("2.2.2.2")
+
+        with pytest.raises(AppError) as caught:
+            limiter.check_create("3.3.3.3")
+
+        assert caught.value.code is not ErrorCode.DAILY_LIMIT_EXCEEDED
+
+    def test_하루가_지나면_풀린다(self, clock):
+        limiter = self.limiter(clock)
+        limiter.check_create("1.1.1.1")
+        limiter.check_create("2.2.2.2")
+
+        clock.advance(86_401)
+
+        limiter.check_create("3.3.3.3")
+
+    def test_개인_한도가_먼저_걸리면_전체_몫을_쓰지_않는다(self, clock):
+        """막힌 요청은 LLM 을 부르지 않는다. 총량을 축내서는 안 된다."""
+        limiter = RateLimiter(
+            per_minute=1,
+            per_day=100,
+            concurrent=100,
+            poll_per_minute=100,
+            service_per_day=10,
+            clock=clock,
+        )
+        limiter.check_create("1.1.1.1")
+
+        with pytest.raises(AppError):
+            limiter.check_create("1.1.1.1")  # 분당 제한에 걸린다
+
+        assert limiter.service_remaining() == 9

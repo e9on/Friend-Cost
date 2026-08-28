@@ -95,6 +95,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         per_day=settings.daily_analysis_limit,
         concurrent=settings.concurrent_analysis_limit,
         poll_per_minute=settings.poll_rate_limit_per_minute,
+        service_per_day=settings.service_daily_limit,
     )
     # 분석이 끝나면 동시 실행 슬롯을 돌려주기 위한 job_id -> ip 대응표
     app.state.pending_release = {}

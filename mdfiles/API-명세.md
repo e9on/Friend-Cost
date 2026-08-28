@@ -100,7 +100,8 @@ Content-Type: multipart/form-data
 | 본문이 상한을 넘는다고 선언 | `IMAGE_TOO_LARGE` | 413 |
 | 허용되지 않은 형식 | `IMAGE_FORMAT_UNSUPPORTED` | 400 |
 | 요청 빈도 초과 | `RATE_LIMITED` | 429 |
-| 일일 분석 횟수 초과 | `DAILY_LIMIT_EXCEEDED` | 429 |
+| 이 IP의 일일 분석 횟수 초과 | `DAILY_LIMIT_EXCEEDED` | 429 |
+| 서비스 전체의 하루 분량 소진 | `SERVICE_DAILY_LIMIT` | 429 |
 | 동시 분석 한도 초과 | `CONCURRENCY_LIMIT` | 429 |
 
 ## 5. 상태 조회

@@ -42,6 +42,14 @@ class Settings(BaseSettings):
     # --- 요청 제한 (API 명세 9장) ---
     rate_limit_per_minute: int = 5
     daily_analysis_limit: int = 10
+    # IP 와 무관한 하루 총량. 다른 제한이 전부 IP 기준이라 전체를 막는 것이
+    # 없었다. 서로 다른 IP 1,000개가 오면 하루 10,000건이 나간다.
+    #
+    # 400 인 이유는 LLM 무료 티어의 하루 한도가 실측 500건이기 때문이다.
+    # 그보다 낮게 잡아 우리가 먼저 멈춘다. 외부 서비스가 끊어 주기를
+    # 기다리면 그 시점의 사용자는 원인을 알 수 없는 실패를 본다.
+    # `운영-보안-법적고지-명세.md` 6.2.1
+    service_daily_limit: int = 400
     concurrent_analysis_limit: int = 3
     poll_rate_limit_per_minute: int = 60
     poll_after_seconds: int = 2

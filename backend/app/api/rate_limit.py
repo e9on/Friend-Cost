@@ -12,7 +12,7 @@ IP는 제한 목적으로만 쓰고 제한 창이 지나면 폐기한다. 분석
 import threading
 import time
 from collections import defaultdict, deque
-from typing import Callable, Deque
+from typing import Final, Callable, Deque
 
 from app.common.errors import AppError, ErrorCode
 
@@ -103,6 +103,10 @@ class ConcurrencyGuard:
                 self._active.pop(key, None)
 
 
+# 전역 창이 쓰는 고정 키. IP 별로 나누지 않겠다는 뜻을 이름으로 남긴다
+_SERVICE: Final = "__service__"
+
+
 class RateLimiter:
     """생성·폴링·동시성 제한을 한데 묶는다."""
 
@@ -112,11 +116,14 @@ class RateLimiter:
         per_day: int,
         concurrent: int,
         poll_per_minute: int,
+        service_per_day: int = 400,
         clock: Clock = time.time,
     ) -> None:
         self.create_minute = SlidingWindowLimiter(per_minute, MINUTE, clock)
         self.create_day = SlidingWindowLimiter(per_day, DAY, clock)
         self.poll_minute = SlidingWindowLimiter(poll_per_minute, MINUTE, clock)
+        # IP 를 키로 쓰지 않는다. 하나의 창에 전부 담아 총량을 센다
+        self.service_day = SlidingWindowLimiter(service_per_day, DAY, clock)
         self.concurrency = ConcurrencyGuard(concurrent)
 
     def check_create(self, ip: str) -> None:
@@ -129,8 +136,16 @@ class RateLimiter:
             raise AppError(ErrorCode.RATE_LIMITED)
         if not self.create_day.consume(ip):
             raise AppError(ErrorCode.DAILY_LIMIT_EXCEEDED)
+        # 개인 한도를 통과한 요청만 총량을 축낸다. 막힌 요청은 LLM 을
+        # 부르지 않으므로 전체 몫에서 빼면 안 된다
+        if not self.service_day.consume(_SERVICE):
+            raise AppError(ErrorCode.SERVICE_DAILY_LIMIT)
         if not self.concurrency.acquire(ip):
             raise AppError(ErrorCode.CONCURRENCY_LIMIT)
+
+    def service_remaining(self) -> int:
+        """오늘 남은 전체 분량. 전역 키를 밖으로 드러내지 않으려고 감싼다."""
+        return self.service_day.check(_SERVICE)
 
     def release(self, ip: str) -> None:
         self.concurrency.release(ip)
@@ -152,6 +167,7 @@ class RateLimiter:
             self.create_minute.prune()
             + self.create_day.prune()
             + self.poll_minute.prune()
+            + self.service_day.prune()
         )
 
     def tracked_keys(self) -> int:
@@ -159,4 +175,5 @@ class RateLimiter:
             self.create_minute.tracked_keys()
             + self.create_day.tracked_keys()
             + self.poll_minute.tracked_keys()
+            + self.service_day.tracked_keys()
         )

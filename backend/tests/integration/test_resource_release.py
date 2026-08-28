@@ -85,6 +85,9 @@ class TestRateLimiterMemory:
             per_day=10,
             concurrent=3,
             poll_per_minute=60,
+            # 이 테스트가 보는 것은 IP 키 청소다. 전역 총량에 먼저 걸리면
+            # 500개를 만들어보지도 못한다
+            service_per_day=10_000,
             clock=lambda: now[0],
         )
 
