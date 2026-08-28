@@ -12,7 +12,13 @@ import logging
 from fastapi import APIRouter, File, Request, Response, UploadFile, status
 
 from app.application.service.service_window import ensure_open
-from app.api.schemas import CreateResponse, HealthResponse, StatusResponse
+from app.common.audit import audit
+from app.api.schemas import (
+    CreateResponse,
+    EventRequest,
+    HealthResponse,
+    StatusResponse,
+)
 from app.application.service.upload_validator import UploadedImage
 from app.domain.model.result import AnalysisResult
 
@@ -116,6 +122,21 @@ def _delete(request: Request, job_id: str) -> None:
     ip = request.app.state.pending_release.pop(job_id, None)
     if ip:
         request.app.state.limiter.release(ip)
+
+
+@router.post("/v1/events", status_code=status.HTTP_204_NO_CONTENT)
+async def record_event(request: Request, payload: EventRequest) -> Response:
+    """사용 이벤트 한 건을 남긴다.
+
+    서버는 분석 요청이 들어와야만 안다. 그 전에 떠난 사람은 흔적이 없다.
+    이탈 지점이 정확히 거기이므로 화면이 알려준다.
+
+    **IP 를 남기지 않는다.** 요청 제한에만 쓰고 기록하지 않는다. 개인을
+    이어붙이지 않는 것이 의도다. `데이터-계약-명세.md` 12-1
+    """
+    request.app.state.limiter.check_poll(_client_ip(request))
+    audit("usage", event=payload.name.value)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/health", response_model=HealthResponse, response_model_by_alias=True)

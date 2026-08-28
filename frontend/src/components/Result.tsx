@@ -19,6 +19,7 @@ import {
   shareMessage,
   thinDataNote,
 } from '../lib/format'
+import { sendEvent } from '../lib/events'
 import { drawResultCard, saveCard, shareCard } from '../lib/shareImage'
 
 interface Props {
@@ -51,9 +52,16 @@ export function Result({ result, onRestart }: Props) {
     if (canvasRef.current) drawResultCard(canvasRef.current, result)
   }, [result])
 
+  // 결과까지 도달했다는 신호. 분석 성공은 서버가 이미 알지만, 사용자가
+  // 화면을 실제로 봤는지는 여기서만 안다
+  useEffect(() => {
+    void sendEvent('result.viewed')
+  }, [])
+
   async function handleSave() {
     if (!canvasRef.current) return
     setSaveState('saving')
+    void sendEvent('result.saved')
     const outcome = await saveCard(canvasRef.current)
     setSaveState(outcome === 'failed' ? 'failed' : 'saved')
   }
@@ -67,6 +75,7 @@ export function Result({ result, onRestart }: Props) {
   async function handleShare() {
     if (!canvasRef.current) return
     setSaveState('saving')
+    void sendEvent('result.shared')
     const outcome = await shareCard(
       canvasRef.current,
       shareMessage(scores.friendFee),

@@ -7,6 +7,8 @@
 
 import { useRef, useState } from 'react'
 
+import { sendEvent } from '../lib/events'
+
 import { Legal } from './Legal'
 
 const MAX_IMAGES = 10
@@ -55,6 +57,9 @@ export function Uploader({ onStart, busy }: Props) {
 
     picked.forEach((item) => URL.revokeObjectURL(item.url))
     setPicked(files.map((file) => ({ file, url: URL.createObjectURL(file) })))
+    // 고르기까지 갔는지와 시작까지 갔는지는 다른 이야기다. 그 사이에서
+    // 떠나는 사람이 있다면 체크박스가 걸림돌이라는 뜻이다
+    void sendEvent('upload.selected')
   }
 
   function remove(index: number) {

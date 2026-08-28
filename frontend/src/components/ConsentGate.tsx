@@ -12,6 +12,7 @@
 
 import { useState, type ReactNode } from 'react'
 
+import { sendEvent } from '../lib/events'
 import type { LegalDoc } from './LegalModal'
 import { LegalModal } from './LegalModal'
 
@@ -70,6 +71,8 @@ export function ConsentGate({ children }: { children: ReactNode }) {
 
   function enter() {
     writeAgreed()
+    // 이미 동의한 사람에게는 보내지 않는다. 여기는 처음 동의할 때만 지난다
+    void sendEvent('consent.agreed')
     setAgreed(true)
   }
 

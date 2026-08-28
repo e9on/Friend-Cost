@@ -5,15 +5,24 @@
  * 업로드 -> 분석 -> 결과 -> 임시 데이터 삭제.
  */
 
+import { useEffect } from 'react'
+
 import { ConsentGate } from './components/ConsentGate'
 import { Failure } from './components/Failure'
 import { Progress } from './components/Progress'
 import { Result } from './components/Result'
 import { Uploader } from './components/Uploader'
 import { useAnalysis } from './hooks/useAnalysis'
+import { sendEvent } from './lib/events'
 
 export default function App() {
   const { phase, stage, result, error, start, reset } = useAnalysis()
+
+  // 동의 화면에서 떠난 사람도 세어야 이탈 지점을 안다. 그래서 게이트
+  // 바깥에서, 앱이 뜨는 순간 보낸다
+  useEffect(() => {
+    void sendEvent('page.view')
+  }, [])
 
   // 동의를 받기 전에는 어떤 화면도 보여주지 않는다. 개보법 제22조는 동의를
   // 구분해 각각 받으라고 하고, 그 앞에 서비스를 쓰게 두면 동의가 사후가 된다
