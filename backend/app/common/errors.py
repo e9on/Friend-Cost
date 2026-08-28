@@ -28,6 +28,7 @@ class ErrorCode(str, Enum):
     RATE_LIMITED = "RATE_LIMITED"
     DAILY_LIMIT_EXCEEDED = "DAILY_LIMIT_EXCEEDED"
     SERVICE_DAILY_LIMIT = "SERVICE_DAILY_LIMIT"
+    SERVICE_ENDED = "SERVICE_ENDED"
     CONCURRENCY_LIMIT = "CONCURRENCY_LIMIT"
     JOB_NOT_FOUND = "JOB_NOT_FOUND"
     JOB_EXPIRED = "JOB_EXPIRED"
@@ -52,6 +53,8 @@ _SPECS: dict[ErrorCode, _Spec] = {
     # 개인 할당량과 문구를 나눈다. 전역 상한에 걸린 사용자는 자기 몫을
     # 쓴 적이 없다. 같은 문구를 쓰면 사실과 다른 말을 하게 된다
     ErrorCode.SERVICE_DAILY_LIMIT: _Spec(429, False, "오늘 서비스 전체 분량이 다 찼어요. 내일 다시 시도해 주세요."),
+    # 끝난 서비스에 재시도를 권하지 않는다. 헛되이 붙잡는 일이다
+    ErrorCode.SERVICE_ENDED: _Spec(410, False, "서비스 운영이 종료되었습니다. 이용해 주셔서 고맙습니다."),
     ErrorCode.CONCURRENCY_LIMIT: _Spec(429, True, "동시에 처리할 수 있는 분석 수를 넘었습니다."),
     ErrorCode.JOB_NOT_FOUND: _Spec(404, False, "존재하지 않는 분석입니다."),
     ErrorCode.JOB_EXPIRED: _Spec(410, False, "분석 결과가 만료되었습니다. 다시 분석해 주세요."),

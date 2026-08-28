@@ -7,6 +7,7 @@
 """
 
 from functools import lru_cache
+from datetime import date
 from typing import Literal
 
 from pydantic import field_validator
@@ -50,6 +51,15 @@ class Settings(BaseSettings):
     # 기다리면 그 시점의 사용자는 원인을 알 수 없는 실패를 본다.
     # `운영-보안-법적고지-명세.md` 6.2.1
     service_daily_limit: int = 400
+    # 운영 종료일. 비워두면 무기한.
+    #
+    # 가장 위험한 것은 켜두고 잊는 것이다. 관심이 식었는데 서버는 계속 도는
+    # 상태가 되면 남의 대화를 계속 받으면서 아무도 보지 않는다. 그 사이
+    # 처리방침이 약속한 신고 응답과 72시간 통지가 지켜지지 않는다.
+    #
+    # 날짜를 잊어도 서버가 먼저 멈춘다. 사람의 기억에 기대지 않는다.
+    # `운영-보안-법적고지-명세.md` 6.2.2
+    service_end_date: date | None = None
     concurrent_analysis_limit: int = 3
     poll_rate_limit_per_minute: int = 60
     poll_after_seconds: int = 2

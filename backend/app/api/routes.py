@@ -11,6 +11,7 @@ import logging
 
 from fastapi import APIRouter, File, Request, Response, UploadFile, status
 
+from app.application.service.service_window import ensure_open
 from app.api.schemas import CreateResponse, HealthResponse, StatusResponse
 from app.application.service.upload_validator import UploadedImage
 from app.domain.model.result import AnalysisResult
@@ -40,6 +41,9 @@ async def create_analysis(request: Request, images: list[UploadFile] = File(defa
     settings = request.app.state.settings
     ip = _client_ip(request)
 
+    # 기간이 끝났으면 요청 제한을 세기 전에 막는다. 끝난 서비스가 남의
+    # 할당량을 축내면 안 된다
+    ensure_open(settings)
     limiter.check_create(ip)
     try:
         payload = [

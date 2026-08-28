@@ -266,3 +266,61 @@ class TestNoDownloadEndpoint:
         response = await client.get(f"/v1/analyses/{job_id}/download")
 
         assert response.status_code == 404
+
+
+class TestServiceEndDate:
+    """종료일이 지나면 새 분석을 받지 않는다.
+
+    막는 것은 생성뿐이다. 이미 만들어진 작업의 조회와 삭제는 계속
+    동작해야 한다. `운영-보안-법적고지-명세.md` 6.2.2
+    """
+
+    async def test_종료일이_지나면_생성을_거절한다(self):
+        from datetime import date
+
+        settings = Settings(
+            rate_limit_per_minute=100,
+            daily_analysis_limit=100,
+            service_end_date=date(2000, 1, 1),
+        )
+        app = create_app(settings)
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with app.router.lifespan_context(app):
+                response = await client.post("/v1/analyses", files=files(1))
+
+                assert response.status_code == 410
+                assert response.json()["error"]["code"] == "SERVICE_ENDED"
+
+    async def test_종료일_전이면_평소대로_받는다(self):
+        from datetime import date
+
+        settings = Settings(
+            rate_limit_per_minute=100,
+            daily_analysis_limit=100,
+            service_end_date=date(2099, 1, 1),
+        )
+        app = create_app(settings)
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with app.router.lifespan_context(app):
+                response = await client.post("/v1/analyses", files=files(1))
+
+                assert response.status_code == 202
+
+    async def test_종료돼도_이미_만든_결과는_볼_수_있다(self):
+        """종료일에 걸린 사용자가 자기 결과를 잃으면 안 된다."""
+        from datetime import date
+
+        settings = Settings(rate_limit_per_minute=100, daily_analysis_limit=100)
+        app = create_app(settings)
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with app.router.lifespan_context(app):
+                job_id = await create_and_wait(client, 1)
+
+                # 분석을 만든 뒤에 종료일이 지났다
+                app.state.settings.service_end_date = date(2000, 1, 1)
+
+                assert (await client.get(f"/v1/analyses/{job_id}")).status_code == 200
+                assert (await client.delete(f"/v1/analyses/{job_id}")).status_code == 204

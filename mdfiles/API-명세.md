@@ -102,6 +102,7 @@ Content-Type: multipart/form-data
 | 요청 빈도 초과 | `RATE_LIMITED` | 429 |
 | 이 IP의 일일 분석 횟수 초과 | `DAILY_LIMIT_EXCEEDED` | 429 |
 | 서비스 전체의 하루 분량 소진 | `SERVICE_DAILY_LIMIT` | 429 |
+| 운영 종료일이 지남 | `SERVICE_ENDED` | 410 |
 | 동시 분석 한도 초과 | `CONCURRENCY_LIMIT` | 429 |
 
 ## 5. 상태 조회

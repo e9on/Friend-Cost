@@ -65,6 +65,18 @@ const GUIDES: Record<string, Guide> = {
     hint: '하루에 분석할 수 있는 횟수를 모두 썼어요. 내일 다시 만나요.',
     retry: false,
   },
+  // 아래 둘은 사용자의 잘못이 아니다. 서비스 쪽 사정이므로 문구를
+  // 개인 할당량과 구분한다. "네가 다 썼다"고 하면 사실과 다른 말이 된다
+  SERVICE_DAILY_LIMIT: {
+    title: '오늘 전체 분량이 다 찼어요',
+    hint: '많은 분이 이용해 오늘 준비한 분량을 다 썼어요. 내일 다시 만나요.',
+    retry: false,
+  },
+  SERVICE_ENDED: {
+    title: '서비스 운영이 종료되었어요',
+    hint: '그동안 이용해 주셔서 고맙습니다.',
+    retry: false,
+  },
   CONCURRENCY_LIMIT: {
     title: '이미 분석이 돌고 있어요',
     hint: '앞선 분석이 끝나면 다시 시도해 주세요.',
