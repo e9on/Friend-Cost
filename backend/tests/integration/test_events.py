@@ -37,11 +37,17 @@ class TestEvents:
         response = await client.post("/v1/events", json={"name": "made.up"})
 
         assert response.status_code == 400
+        # 코드까지 본다. 상태만 보면 엉뚱한 코드가 나가도 통과한다.
+        # 실제로 "지원하지 않는 이미지 형식입니다"가 나가고 있었다
+        assert response.json()["error"]["code"] == "BAD_REQUEST"
 
     async def test_대화_원문이_섞여도_거절한다(self, client):
         response = await client.post("/v1/events", json={"name": "오늘 진짜 힘들었는데"})
 
         assert response.status_code == 400
+        assert response.json()["error"]["code"] == "BAD_REQUEST"
+        # 오류 응답에 원문이 되비쳐 나가면 안 된다
+        assert "힘들었는데" not in response.text
 
     async def test_이름이_없으면_거절한다(self, client):
         response = await client.post("/v1/events", json={})

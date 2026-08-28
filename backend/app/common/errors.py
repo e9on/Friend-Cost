@@ -33,6 +33,7 @@ class ErrorCode(str, Enum):
     JOB_NOT_FOUND = "JOB_NOT_FOUND"
     JOB_EXPIRED = "JOB_EXPIRED"
     JOB_NOT_READY = "JOB_NOT_READY"
+    BAD_REQUEST = "BAD_REQUEST"
     INTERNAL_ERROR = "INTERNAL_ERROR"
     ANALYSIS_TIMEOUT = "ANALYSIS_TIMEOUT"
 
@@ -61,6 +62,7 @@ _SPECS: dict[ErrorCode, _Spec] = {
     ErrorCode.JOB_NOT_READY: _Spec(409, True, "아직 분석이 끝나지 않았습니다."),
     ErrorCode.INTERNAL_ERROR: _Spec(500, True, "일시적인 오류가 발생했습니다."),
     ErrorCode.ANALYSIS_TIMEOUT: _Spec(504, True, "분석 시간이 초과되었습니다."),
+    ErrorCode.BAD_REQUEST: _Spec(400, False, "요청 형식이 올바르지 않습니다."),
 }
 
 

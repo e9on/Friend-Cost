@@ -28,13 +28,20 @@ logger = logging.getLogger(__name__)
 
 # 프레임워크가 만든 상태 코드를 우리 오류 코드로 옮긴다
 _HTTP_STATUS_TO_CODE = {
-    400: ErrorCode.IMAGE_FORMAT_UNSUPPORTED,
+    # 프레임워크가 만든 오류에만 쓰이는 표다. 이미지 형식 문제는 업로드
+    # 검증기가 직접 IMAGE_FORMAT_UNSUPPORTED 를 던진다.
+    #
+    # 예전에는 본문을 받는 엔드포인트가 업로드뿐이라 400·422 를 이미지
+    # 형식 오류로 두어도 맞았다. POST /v1/events 가 생기면서 틀린 말이
+    # 됐다. 이벤트 이름이 잘못됐는데 "지원하지 않는 이미지 형식입니다"가
+    # 나갔다. 데이터-계약-명세 11.1
+    400: ErrorCode.BAD_REQUEST,
     404: ErrorCode.JOB_NOT_FOUND,
     405: ErrorCode.JOB_NOT_FOUND,
     409: ErrorCode.JOB_NOT_READY,
     410: ErrorCode.JOB_EXPIRED,
     413: ErrorCode.IMAGE_TOO_LARGE,
-    422: ErrorCode.IMAGE_FORMAT_UNSUPPORTED,
+    422: ErrorCode.BAD_REQUEST,
     429: ErrorCode.RATE_LIMITED,
 }
 
@@ -153,8 +160,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def handle_validation_error(
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
-        # 업로드 형식이 어긋난 경우다. 상세 내용은 노출하지 않는다
-        return _error_response(AppError(ErrorCode.IMAGE_FORMAT_UNSUPPORTED))
+        # 요청이 라우트에 닿기 전에 거절된 경우다. 본문이 JSON 이 아니거나,
+        # 필드가 빠졌거나, 값이 열거형에 없다.
+        #
+        # 이미지 형식 오류로 단정하지 않는다. 본문을 받는 엔드포인트가
+        # 업로드뿐일 때는 맞았지만 POST /v1/events 가 생기면서 틀린 말이
+        # 됐다. 이벤트 이름이 잘못됐는데 "지원하지 않는 이미지 형식입니다"가
+        # 나갔다.
+        #
+        # 상세 내용은 노출하지 않는다. 검증 오류에는 사용자가 보낸 값이
+        # 그대로 들어 있어, 그것이 곧 대화 원문이 되비쳐 나가는 통로가 된다.
+        # 데이터-계약-명세 11.1
+        return _error_response(AppError(ErrorCode.BAD_REQUEST))
 
     @app.exception_handler(StarletteHTTPException)
     async def handle_http_exception(
