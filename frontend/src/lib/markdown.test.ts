@@ -11,6 +11,7 @@
 
 import { describe, expect, it } from 'vitest'
 
+import type { Part } from './markdown'
 import { renderMarkdown } from './markdown'
 
 describe('renderMarkdown', () => {
@@ -30,29 +31,37 @@ describe('renderMarkdown', () => {
   it('표를 머리와 몸으로 나눈다', () => {
     const nodes = renderMarkdown('| 가 | 나 |\n| --- | --- |\n| 1 | 2 |')
 
-    expect(nodes[0]).toMatchObject({
-      kind: 'table',
-      head: ['가', '나'],
-      rows: [['1', '2']],
-    })
+    const table = nodes[0] as { kind: string; head: { parts: Part[] }[]; rows: { parts: Part[] }[][] }
+
+    expect(table.kind).toBe('table')
+    expect(table.head.map((c) => c.parts[0].text)).toEqual(['가', '나'])
+    expect(table.rows.map((row) => row.map((c) => c.parts[0].text))).toEqual([['1', '2']])
   })
 
   it('구분선만 있는 행을 내용으로 넣지 않는다', () => {
     const nodes = renderMarkdown('| 가 |\n| --- |\n| 1 |')
 
-    expect((nodes[0] as { rows: string[][] }).rows).toEqual([['1']])
+    const rows = (nodes[0] as { rows: { parts: Part[] }[][] }).rows
+
+    expect(rows.map((row) => row.map((c) => c.parts[0].text))).toEqual([['1']])
   })
 
   it('글머리 목록을 묶는다', () => {
     const nodes = renderMarkdown('- 하나\n- 둘')
 
-    expect(nodes[0]).toMatchObject({ kind: 'list', ordered: false, items: ['하나', '둘'] })
+    const list = nodes[0] as { kind: string; ordered: boolean; items: { parts: Part[] }[] }
+
+    expect(list).toMatchObject({ kind: 'list', ordered: false })
+    expect(list.items.map((item) => item.parts[0].text)).toEqual(['하나', '둘'])
   })
 
   it('번호 목록을 묶는다', () => {
     const nodes = renderMarkdown('1. 하나\n2. 둘')
 
-    expect(nodes[0]).toMatchObject({ kind: 'list', ordered: true, items: ['하나', '둘'] })
+    const list = nodes[0] as { kind: string; ordered: boolean; items: { parts: Part[] }[] }
+
+    expect(list).toMatchObject({ kind: 'list', ordered: true })
+    expect(list.items.map((item) => item.parts[0].text)).toEqual(['하나', '둘'])
   })
 
   it('굵게를 조각으로 나눈다', () => {
@@ -78,5 +87,33 @@ describe('renderMarkdown', () => {
 
   it('빈 입력에도 터지지 않는다', () => {
     expect(renderMarkdown('')).toEqual([])
+  })
+})
+
+describe('굵게는 어디서나 처리된다', () => {
+  it('표 칸 안에서도', () => {
+    // 법률 문서는 표 안에서 "**초안. 법률 검토를 받지 않았다.**" 처럼 쓴다.
+    // 처리하지 않으면 별표가 그대로 화면에 보인다
+    const nodes = renderMarkdown(['| 상태 |', '| --- |', '| **초안** |'].join('\n'))
+    const table = nodes[0] as { rows: { parts: unknown[] }[][] }
+
+    expect(table.rows[0][0].parts).toEqual([{ bold: true, text: '초안' }])
+  })
+
+  it('목록 항목 안에서도', () => {
+    const nodes = renderMarkdown('- **본인이 참여한 대화만** 올린다')
+    const list = nodes[0] as { items: { parts: unknown[] }[] }
+
+    expect(list.items[0].parts).toEqual([
+      { bold: true, text: '본인이 참여한 대화만' },
+      { bold: false, text: ' 올린다' },
+    ])
+  })
+
+  it('표 머리에서도', () => {
+    const nodes = renderMarkdown(['| **항목** |', '| --- |', '| 값 |'].join('\n'))
+    const table = nodes[0] as { head: { parts: unknown[] }[] }
+
+    expect(table.head[0].parts).toEqual([{ bold: true, text: '항목' }])
   })
 })

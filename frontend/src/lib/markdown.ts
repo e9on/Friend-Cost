@@ -20,8 +20,8 @@ export type Node =
   | { kind: 'heading'; level: number; text: string }
   | { kind: 'paragraph'; parts: Part[] }
   | { kind: 'quote'; parts: Part[] }
-  | { kind: 'list'; ordered: boolean; items: string[] }
-  | { kind: 'table'; head: string[]; rows: string[][] }
+  | { kind: 'list'; ordered: boolean; items: { parts: Part[] }[] }
+  | { kind: 'table'; head: { parts: Part[] }[]; rows: { parts: Part[] }[][] }
 
 const HEADING = /^(#{1,6})\s+(.*)$/
 const BULLET = /^[-*]\s+(.*)$/
@@ -39,12 +39,15 @@ export function splitBold(text: string): Part[] {
   return parts
 }
 
-function cells(line: string): string[] {
+// 굵게는 문단만이 아니라 표 칸과 목록 항목에서도 쓰인다. 법률 문서는
+// 표 안에서 "**초안. 법률 검토를 받지 않았다.**" 처럼 쓴다. 여기서
+// 처리하지 않으면 별표가 그대로 화면에 보인다
+function cells(line: string): { parts: Part[] }[] {
   return line
     .replace(/^\|/, '')
     .replace(/\|$/, '')
     .split('|')
-    .map((cell) => cell.trim())
+    .map((cell) => ({ parts: splitBold(cell.trim()) }))
 }
 
 export function renderMarkdown(source: string): Node[] {
@@ -69,7 +72,7 @@ export function renderMarkdown(source: string): Node[] {
     }
 
     if (trimmed.startsWith('|')) {
-      const table: string[][] = []
+      const table: { parts: Part[] }[][] = []
       while (index < lines.length && lines[index].trim().startsWith('|')) {
         const row = lines[index].trim()
         // 구분선(| --- |)은 내용이 아니다
@@ -85,11 +88,11 @@ export function renderMarkdown(source: string): Node[] {
     if (BULLET.test(trimmed) || NUMBERED.test(trimmed)) {
       const ordered = NUMBERED.test(trimmed)
       const pattern = ordered ? NUMBERED : BULLET
-      const items: string[] = []
+      const items: { parts: Part[] }[] = []
       while (index < lines.length) {
         const match = pattern.exec(lines[index].trim())
         if (!match) break
-        items.push(match[1].trim())
+        items.push({ parts: splitBold(match[1].trim()) })
         index += 1
       }
       nodes.push({ kind: 'list', ordered, items })

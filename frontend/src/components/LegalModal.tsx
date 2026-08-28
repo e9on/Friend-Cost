@@ -42,7 +42,7 @@ function Block({ node }: { node: Node }) {
   if (node.kind === 'list') {
     const items = node.items.map((item, index) => (
       <li key={index}>
-        <Text parts={[{ bold: false, text: item }]} />
+        <Text parts={item.parts} />
       </li>
     ))
     return node.ordered ? <ol>{items}</ol> : <ul>{items}</ul>
@@ -53,7 +53,9 @@ function Block({ node }: { node: Node }) {
         <thead>
           <tr>
             {node.head.map((cell, index) => (
-              <th key={index}>{cell}</th>
+              <th key={index}>
+                <Text parts={cell.parts} />
+              </th>
             ))}
           </tr>
         </thead>
@@ -61,7 +63,9 @@ function Block({ node }: { node: Node }) {
           {node.rows.map((row, rowIndex) => (
             <tr key={rowIndex}>
               {row.map((cell, index) => (
-                <td key={index}>{cell}</td>
+                <td key={index}>
+                  <Text parts={cell.parts} />
+                </td>
               ))}
             </tr>
           ))}
