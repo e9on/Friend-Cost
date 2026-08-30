@@ -99,7 +99,7 @@ OpenAI 호환 스펙을 따르는 곳은 구현 하나로 모두 덮으므로, �
 
 Provider는 전송만 한다. 프롬프트는 `app/ai/prompt/`, 응답 검증은 `app/ai/validator/` 소관이므로 건드릴 필요가 없다.
 
-**OCR** — Google Cloud Vision이 구현되어 있다. `FC_OCR_ENGINE=google_vision` 과 `FC_OCR_API_KEY` 를 설정한다.
+**OCR** — 컨테이너 내장 RapidOCR(`FC_OCR_ENGINE=rapid`)을 채택했다. API 키가 필요 없는 대신 상시 실행 인스턴스와 1Gi 이상 메모리를 전제한다. `pip install ".[ocr]"` 로 설치한다. Google Cloud Vision(`google_vision`)도 구현되어 있으나, 그쪽을 쓰면 **이미지가 외부로 나가므로** `legal/개인정보-처리방침.md` 5장의 서술이 거짓이 된다. 테스트가 그것을 막는다.
 
 > OCR 엔진은 **텍스트와 함께 bounding box 좌표, 그리고 이미지 크기를 반환해야 한다.** 화자 판별이 좌우 여백 비교에 의존하기 때문이다. 좌표를 주지 않는 엔진은 비용이 낮아도 쓸 수 없다. 자세한 내용은 `OCR-Parser-명세.md` 2장.
 
@@ -116,6 +116,8 @@ Provider는 전송만 한다. 프롬프트는 `app/ai/prompt/`, 응답 검증은
 | `FC_MAX_MESSAGES` | 120 | 초과 시 샘플링 |
 | `FC_RATE_LIMIT_PER_MINUTE` | 5 | IP당 분석 생성 |
 | `FC_DAILY_ANALYSIS_LIMIT` | 10 | IP당 일일 분석 |
+| `FC_SERVICE_DAILY_LIMIT` | 400 | **IP와 무관한** 하루 총량. 비용 상한 |
+| `FC_SERVICE_END_DATE` | 없음 | 운영 종료일. 지나면 새 분석을 받지 않는다 |
 | `FC_TOTAL_TIMEOUT_SECONDS` | 180 | 분석 전체 제한 |
 | `FC_LLM_PROVIDER` | stub | 교체 지점 |
 | `FC_LLM_REASONING_EFFORT` | 없음 | 추론 모델의 사고 분량 |
